@@ -1,0 +1,1 @@
+Yinghua Liu, Zuhua Xu, Zhongxiang Ge, Jun Zhao, Wei Yan, Zhijiang Shao. Long-term demand prediction based on dual-stream guided diffusion model integrating production plans for oxygen supply network. Information Sciences, 755:123800, 2026.
