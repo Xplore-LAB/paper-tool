@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paper-tool"
-version = "1.1.0"
+version = "1.2.0"
 description = "CiteCargo: turn reference lists into verified PDFs, with optional Zotero filing"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -37,4 +37,4 @@ paper-tool = "paper_tool.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-paper_tool = ["browser/*.mjs"]
+paper_tool = ["browser/*.mjs", "web/*.html", "web/*.css", "web/*.js"]

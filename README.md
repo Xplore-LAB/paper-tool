@@ -1,59 +1,62 @@
 <div align="center">
 
-<img src="docs/assets/citecargo.svg" alt="CiteCargo · 文献直达 — Academic paper downloader" width="100%"/>
+<img src="docs/assets/citecargo.zh-CN.svg" alt="CiteCargo 文献直达：科研人员的论文获取与归档助手" width="100%"/>
 
 ### 把找论文的时间，还给研究。
 
-**DOI to PDF · 批量收论文 · 按需归档 Zotero**
+**粘贴参考文献，获取论文全文；需要时，再归档到 Zotero。**
 
-[![Release](https://img.shields.io/github/v/release/Xplore-LAB/paper-tool)](https://github.com/Xplore-LAB/paper-tool/releases/latest)
+[![版本](https://img.shields.io/github/v/release/Xplore-LAB/paper-tool?label=%E7%89%88%E6%9C%AC)](https://github.com/Xplore-LAB/paper-tool/releases/latest)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
-[![MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![协议](https://img.shields.io/badge/%E5%8D%8F%E8%AE%AE-MIT-green)](LICENSE)
 
-[立即下载](https://github.com/Xplore-LAB/paper-tool/releases/latest) · [English](docs/README.en.md) · [使用手册](docs/usage.md) · [反馈](https://github.com/Xplore-LAB/paper-tool/issues)
+[下载操作页版](https://github.com/Xplore-LAB/paper-tool/releases/download/v1.2.0/CiteCargo-1.2.0-Windows.zip) · [下载 AI 技能](https://github.com/Xplore-LAB/paper-tool/releases/download/v1.2.0/CiteCargo-1.2.0-Skill.zip) · [英文版](docs/README.en.md) · [反馈](https://github.com/Xplore-LAB/paper-tool/issues)
 
 </div>
 
-> **交给它：** 一个 DOI、一条完整引用，或一份参考文献清单。<br>
-> **带回来：** 核验过的论文 PDF 文件夹；需要时，连题录一起归进 Zotero。
+给它一个 DOI、一条完整参考文献，或一份论文清单。它会查找可获取的正文、核验 PDF、保留下载进度。**只要文件就下载到本地，想建文献库再选择 Zotero 归档。**
+
+## 选你顺手的方式
+
+| 使用方式 | 你需要做什么 | 适合谁 |
+|---|---|---|
+| **AI 技能** | 安装后，把论文需求直接告诉 AI | 已使用能执行本机命令的 AI 助手 |
+| **本地操作页** | 双击启动，粘贴清单，点击“开始下载” | 希望自己点击操作的科研人员 |
+
+技能与操作页共用同一下载引擎，默认都不连接 Zotero。
+
+## 三步开始
+
+**交给 AI：** 下载技能包，解压后把 `citecargo` 文件夹放进助手支持的技能目录。在 Codex 中放入 `~/.codex/skills/`，重开会话即可使用：
+
+> 用文献直达帮我下载这些论文，只要正文，保存到我的课题文件夹。
+
+助手会处理安装与运行。需要 Python 3.10+，以及支持本地命令执行的 AI 客户端。[技能安装说明](docs/agents.md)
+
+**自己操作：** Windows 下载操作页压缩包，解压整个文件夹，双击 `Start-CiteCargo.cmd`。浏览器打开后：
+
+1. 粘贴 DOI 或完整参考文献，每行一篇。
+2. 点击“开始下载”，查看逐篇结果。
+3. 打开保存文件夹，或把 PDF 打包取回。
+
+首次需要安装 Python 3.10+；压缩包已包含基础依赖。本版是本地浏览器操作页，启动窗口需保持打开。[安装与使用手册](docs/usage.md#本地操作页) 包含其他系统的启动方法。
+
+## 少找、少下、少整理
+
+- **参考文献直接用**：自动匹配 DOI，查询开放全文，支持整份清单。
+- **下载之后先核验**：检查文件可读性及论文身份，待复核条目单独标出。
+- **失败项接着补**：保留已核验 PDF，按论文续跑，不必整批重下。
+- **文件与文献库随你选**：独立下载无需 Zotero；归档时使用已有分类、按 DOI 去重并附加 PDF。
+- **衔接学校订阅**：可选 ScienceDirect 授权浏览器路径，支持已有校园网、VPN 或代理环境。
+
+学校订阅需要你已有的访问权限与额外浏览器组件，目前自动回退覆盖带 Crossref 出版商标识的 ScienceDirect 论文。Zotero 归档需 Zotero 10+ 开启本地接口并授权。
 
 ## 一次真实交付
 
-<img src="docs/assets/result.svg" alt="真实 OA 下载结果：PDF 已保存，首页题名核验通过，5 页，89.3 KiB" width="100%"/>
+<img src="docs/assets/result.zh-CN.svg" alt="真实开放获取下载：5 页 PDF 已保存，首页题名核验通过" width="100%"/>
 
-由已完成的真实 `report.json` 生成的结果卡。示例论文：[10.1371/journal.pone.0000308](https://doi.org/10.1371/journal.pone.0000308)。
+结果卡来自已完成的真实下载报告。示例论文：[10.1371/journal.pone.0000308](https://doi.org/10.1371/journal.pone.0000308)。
 
-## 开始收论文
+[进阶用法与机构访问](docs/usage.md) · [表格清单导出](docs/reports.md) · [参与开发](.github/CONTRIBUTING.md) · [更新记录](docs/changelog.md)
 
-Python 3.10+。从 [Release](https://github.com/Xplore-LAB/paper-tool/releases/latest) 下载 wheel 后安装：
-
-```bash
-python -m pip install ./paper_tool-1.1.0-py3-none-any.whl
-```
-
-```bash
-# 一篇论文：贴 DOI 或完整引用
-citecargo fetch "10.1371/journal.pone.0000308" --out papers
-
-# 一份清单：每行一篇，中断后重跑同一命令
-citecargo batch --input refs.txt --out library
-
-# 一个文献库：复用这批 PDF，归入已有 Zotero 分类
-citecargo batch --input refs.txt --out library --zotero --collection "My Papers"
-```
-
-下载不需要 Zotero。归档需 Zotero 10+ 开启本地 API 并授权；旧命令 `paper-tool` 继续可用。
-
-## 它替你做的事
-
-**引用找全文 → PDF 核验 → 记录进度 → 按需入库**
-
-- **少找一遍**：完整引用先匹配 DOI，再查询开放全文；已有学校订阅可接 ScienceDirect 授权浏览器。
-- **少下一遍**：已核验文件直接复用，任务按论文续跑，失败项单独补。
-- **少整理一轮**：题录与 PDF 对应保存，同一批次以后也能继续归档 Zotero。
-
-机构访问需要已有权限，自动浏览器回退目前覆盖带 Crossref PII 的 ScienceDirect 论文。
-
-[机构访问与续跑](docs/usage.md) · [Excel 清单导出](docs/reports.md) · [开发](.github/CONTRIBUTING.md) · [更新记录](docs/changelog.md)
-
-本地测试、安装与 OA 下载已验证；跨平台 CI 和真实 Zotero 验收状态见 [发布说明](https://github.com/Xplore-LAB/paper-tool/releases/latest)。
+本地测试与浏览器操作流程已验证。Windows 启动脚本、跨平台自动检查及真实 Zotero 验收的验证范围见[发布说明](https://github.com/Xplore-LAB/paper-tool/releases/latest)。

@@ -1,11 +1,14 @@
 # Architecture and validation
 
-The public interface is the `citecargo` CLI, with `paper-tool` compatibility; the implementation modules are
-internal and may change. See usage.md for the command/exit-code contract and operational steps.
+Researchers enter through the AI skill or local browser interface. Both use the
+`citecargo` CLI/engine, with `paper-tool` compatibility; implementation modules are
+internal. See usage.md for the command/exit-code contract and operational steps.
 
 ```mermaid
 flowchart TD
-    A[DOI or citation list] --> B[Resolve reliable metadata]
+    S[AI skill] --> A[DOI or citation list]
+    W[Local browser interface] --> A
+    A --> B[Resolve reliable metadata]
     B --> M{Metadata-only task?}
     M -- Yes --> Z[Ensure item in existing Zotero collection]
     M -- No --> L[Verify and reuse local PDF]
@@ -22,6 +25,8 @@ flowchart TD
 ```
 
 - `src/paper_tool/cli.py`: CLI, single-paper flow, progress/audit/failure commands.
+- `src/paper_tool/ui.py` and `web/`: foreground loopback server and bilingual UI.
+- `skills/citecargo/`: AI instructions, using the same CLI rather than a separate downloader.
 - `src/paper_tool/core.py`: metadata services, verification, downloads, Zotero protocol.
 - `src/paper_tool/batch.py`: per-paper recovery and atomic checkpoint updates.
 - `src/paper_tool/browser/download.mjs`: optional CDP/Playwright institutional route.
@@ -40,3 +45,10 @@ publication with fake Playwright, and release archive hygiene. They do not prove
 current institutional entitlement or compatibility with a live desktop Zotero.
 Optional institutional/Zotero integrations require an acceptance run in the
 user's own environment; their release status is documented separately.
+
+The browser UI accepts one active batch per process. Host/origin checks and a
+per-process token protect mutations. Downloads serve only verified PDF paths
+inside the configured folder. Retry keeps the original checkpoint and only runs
+unfinished references. Current-session history is in memory; PDFs and engine
+checkpoints remain on disk after shutdown, and re-entering a list reuses verified
+files. The UI server is a user-launched foreground process, not an installed daemon.

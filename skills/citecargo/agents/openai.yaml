@@ -1,0 +1,4 @@
+interface:
+  display_name: "CiteCargo"
+  short_description: "让 AI 根据 DOI 或参考文献获取并核验论文，按需归档到 Zotero"
+  default_prompt: "使用 $citecargo 帮我下载这些论文，核验 PDF，并告诉我哪些还需要补充。"

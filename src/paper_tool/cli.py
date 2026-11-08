@@ -474,6 +474,13 @@ def main(argv=None, *, prog="paper-tool"):
     parser=argparse.ArgumentParser(prog=prog, description=__doc__)
     parser.add_argument('--version', action='version', version=prog+' '+__version__)
     commands=parser.add_subparsers(dest='command',required=True)
+    ui = commands.add_parser('ui', help='Open the local browser interface')
+    ui.add_argument('--out', type=Path, default=Path(os.environ.get('PAPER_TOOL_OUT') or Path.home()/'Downloads'/'CiteCargo'))
+    ui.add_argument('--port', type=int, default=8765)
+    ui.add_argument('--no-browser', action='store_true')
+    ui.add_argument('--lang', choices=('zh', 'en'), default='zh')
+    ui.add_argument('--zotero-base', default=DEFAULT_ZOTERO)
+    ui.add_argument('--proxy', default=DEFAULT_PROXY)
     doc = commands.add_parser('doctor',help='Check browser, Zotero and (if needed) VPN proxy ports')
     doc.add_argument('--proxy',default=DEFAULT_PROXY,help='Use direct for the native VPN route, or an HTTP proxy URL')
     doc.add_argument('--deep',action='store_true',help='Also check Node, Playwright, the debugging browser and Zotero authorization')
@@ -531,6 +538,16 @@ def main(argv=None, *, prog="paper-tool"):
         p.add_argument('--collection')
         p.add_argument('--skip-done',action='store_true',help='Skip references already completed in the existing report')
     args=parser.parse_args(argv)
+    if args.command=='ui':
+        if not 0 <= args.port <= 65535:
+            parser.error('--port must be between 0 and 65535')
+        from .ui import serve, InputError
+        try:
+            return serve(args.out, args.port, open_browser=not args.no_browser,
+                         zotero_base=args.zotero_base, proxy=args.proxy, language=args.lang)
+        except (OSError, InputError) as error:
+            print('CiteCargo could not open the local page: '+str(error), file=sys.stderr)
+            return 2
     if args.command=='doctor':
         result=doctor(args.proxy,deep=args.deep,zotero_base=args.zotero_base);print(json.dumps(result,ensure_ascii=False));return 0 if result['ok'] else 2
     if args.command=='browser':

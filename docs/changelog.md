@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here.
 
+## 1.2.0 — A simpler way in
+
+- Added a bilingual local browser interface for references, progress, PDF retrieval and optional Zotero archival.
+- Added the CiteCargo AI skill, sharing the existing CLI and retrieval engine.
+- Added a Windows launcher bundle with offline Python dependencies; Python 3.10+ remains required.
+- Kept retry checkpoints and completed files; enabled institutional access when retrying an OA-only task.
+- Separated Chinese and English landing-page copy and illustrations.
+- Added loopback HTTP tests for independent downloads, ZIP delivery, access boundaries and recovery.
+
 ## 1.1.0 — CiteCargo
 
 - Introduced CiteCargo (文献直达) and the `citecargo` command; retained `paper-tool`.

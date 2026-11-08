@@ -1,8 +1,35 @@
 # CiteCargo 使用手册
 
+## 本地操作页
+
+Windows 用户下载发布页的操作页压缩包，解压整个文件夹后双击 `Start-CiteCargo.cmd`。
+首次需要 Python 3.10+；基础依赖已打包，启动时在包内创建独立运行环境。
+页面打开后粘贴 DOI 或完整参考文献，每行一篇，点击“开始下载”。
+默认只查开放全文；勾选“使用学校订阅”启用机构浏览器回退，需完成下文的组件配置与机构登录。
+
+macOS、Linux 或已安装工具的用户运行：
+
+```bash
+citecargo ui
+citecargo ui --lang en
+```
+
+默认保存到用户目录 `Downloads/CiteCargo/PDF`，也可通过 `PAPER_TOOL_OUT` 或 `--out` 配置。
+页面只在本机回环地址打开，启动窗口需保持运行。任务历史保留在本次运行内；重开后可重新粘贴清单，已核验 PDF 会被复用。
+“补下未完成的论文”保留原归档设置，并采用当前“使用学校订阅”选项，不重复处理已完成条目。
+归档需要主动勾选 Zotero、读取分类并选择已有目标；不勾选就不会连接 Zotero。
+
+远程服务器运行时用 `citecargo ui --no-browser`，在自己电脑通过 SSH 转发页面：
+
+```bash
+ssh -N -L 8765:127.0.0.1:8765 user@server
+```
+
+再打开 `http://127.0.0.1:8765`。可通过页面取回 PDF；“打开文件夹”打开的是服务所在电脑的目录。
+
 ## 安装与源码运行
 
-需要 Python 3.10+。安装 Release 中的 wheel，或在源码目录执行：
+需要 Python 3.10+。安装发布页中的 Python 安装包（`.whl`），或在源码目录执行：
 
 ```bash
 python -m pip install -e ".[dev]"
@@ -85,7 +112,7 @@ Windows 记住的授权以 DPAPI 加密存入当前用户 LocalAppData，不放�
 
 稳定接口是 CLI；内部 Python 函数不作为公共 API。
 
-- 子命令：`fetch`、`batch`、`preview`、`collections`、`browser`、`doctor`、`progress`、`audit`、`failures`。
+- 子命令：`ui`、`fetch`、`batch`、`preview`、`collections`、`browser`、`doctor`、`progress`、`audit`、`failures`。
 - 退出码：`0` 表示所选任务完成；`2` 表示参数错误、待补或需复核。
 - `fetch` 的 `report.json` 包含 `results` 列表；`batch` 的 `manifest.json` 是逐篇列表。
 - 结果包含 `status`，按阶段提供 `paper`、`pdf`、`sha256`、`warnings`、`download_state`、`archive_state`；空值或缺字段不表示成功。

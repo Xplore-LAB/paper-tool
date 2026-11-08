@@ -1,10 +1,11 @@
 include LICENSE AGENTS.md README.md pyproject.toml .gitattributes .gitignore
 include .github/CONTRIBUTING.md
-recursive-include src *.py *.mjs
+recursive-include src *.py *.mjs *.html *.css *.js
 recursive-include tests *.py
 recursive-include docs *.md *.svg
 recursive-include scripts *.py *.cmd *.mjs
 recursive-include examples *.py *.txt *.example
+recursive-include skills *.md *.yaml
 prune .git
 prune .local
 prune release

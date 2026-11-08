@@ -1,8 +1,9 @@
 # CiteCargo: contributor and research-agent entry point
 
 Read README.md and docs/usage.md before changing or using the pipeline. This is a
-CiteCargo CLI (`paper-tool` remains compatible) for DOI/reference resolution, verified PDF retrieval and optional Zotero
-archiving. Do not create a second downloader or a background service.
+CiteCargo research-paper assistant: AI skill and foreground local browser UI over
+the CLI (`paper-tool` remains compatible) for verified PDF retrieval and optional
+Zotero archiving. Reuse the existing engine; do not deploy a background service.
 
 ## Downloading papers
 
@@ -25,6 +26,8 @@ archiving. Do not create a second downloader or a background service.
 - Follow the public CLI/status contract in docs/usage.md. Keep downloaded artifacts,
   credentials, profiles, personal collections and local machine notes out of Git.
 - Never print API keys, VPN credentials, cookies or temporary signed PDF URLs.
+- Keep the UI on loopback, with origin/host checks and protected mutations.
+  Maintain the AI skill at skills/citecargo/SKILL.md instead of duplicating rules.
 - Preserve existing PDF files and Zotero items. Interrupted uploads should reuse
   their original attachment records with the upload protocol's preconditions.
 - Run `python -m unittest discover -v` after functional changes. Tests may use

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CiteCargo · 文献直达</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body>
+<header><a class="brand" href="/"><span class="mark">C</span><span>CiteCargo <small data-i18n="brand">文献直达</small></span></a><button id="language" class="quiet" type="button">English</button></header>
+<main>
+<section class="intro"><p class="eyebrow" data-i18n="eyebrow">让论文获取更省事</p><h1 data-i18n="headline">贴上清单，把论文带回来。</h1><p data-i18n="intro">输入 DOI 或完整参考文献。下载、核验和归档，交给工具处理。</p></section>
+<div class="layout">
+<section class="card input-card">
+<label for="references" class="section-title" data-i18n="references">想要哪些论文？</label>
+<p class="hint" data-i18n="input_hint">每行一篇，可直接粘贴参考文献清单。</p>
+<textarea id="references" rows="7" maxlength="50000" placeholder="10.1371/journal.pone.0000308"></textarea>
+<div class="input-tools"><button id="example" type="button" class="quiet" data-i18n="example">填入示例</button><label class="file-button"><span data-i18n="import_list">导入文本清单</span><input id="input-file" type="file" accept=".txt,text/plain"></label><span class="hint" data-i18n="limit">每次最多 200 条</span></div>
+<div class="option"><label><input type="checkbox" id="institutional"><span data-i18n="institutional">使用学校订阅</span></label><p class="hint" data-i18n="institution_hint">可选 ScienceDirect 授权访问，需先在专用浏览器登录。</p><button id="browser" class="secondary" type="button" hidden data-i18n="open_browser">打开登录浏览器</button></div>
+<div class="option"><label><input type="checkbox" id="zotero"><span data-i18n="archive">同时归档到 Zotero</span></label><p class="hint" data-i18n="archive_hint">只下载无需打开 Zotero。归档需要 Zotero 10+ 开启本地接口。</p>
+<div id="archive-options" hidden><div class="collection-row"><select id="collection" aria-label="Zotero collection"><option value="" data-i18n="choose_collection">请选择已有分类</option></select><button id="collections" type="button" class="secondary" data-i18n="read_collections">读取分类</button></div><label class="sub-option"><input type="checkbox" id="metadata-only"><span data-i18n="metadata_only">只存题录，不获取 PDF</span></label><details><summary data-i18n="connection_settings">连接设置</summary><label class="hint" for="zotero-base" data-i18n="zotero_address">Zotero 本地接口地址</label><input id="zotero-base" type="url"><p class="hint" data-i18n="connection_hint">在 Zotero“设置 → 高级”开启本机通信。首次归档时需在 Zotero 中确认授权。</p></details></div></div>
+<button id="start" class="primary" type="button" data-i18n="start">开始下载</button><p id="notice" role="status" aria-live="polite" class="notice"></p>
+</section>
+<section class="card results-card">
+<div class="results-heading"><h2 data-i18n="results">论文到哪一步了？</h2><select id="history" aria-label="Task history"><option value="" data-i18n="current_session">本次打开的任务</option></select></div>
+<div id="empty" class="empty"><span class="empty-symbol">↓</span><h3 data-i18n="empty_title">论文会出现在这里</h3><p data-i18n="empty_hint">开始后可查看逐篇进度，完成后下载单篇或打包取回。</p></div>
+<div id="task" hidden><div class="task-state"><strong id="task-state"></strong><span id="counts" class="hint"></span></div><progress id="progress" value="0" max="1"></progress><p id="task-tip" class="hint"></p><div class="table-wrap"><table><thead><tr><th data-i18n="paper">论文</th><th data-i18n="status">状态</th><th data-i18n="file">文件</th></tr></thead><tbody id="rows"></tbody></table></div><div class="result-actions"><a id="zip" class="primary button" hidden data-i18n="download_all">打包下载 PDF</a><button id="retry" class="secondary" type="button" hidden data-i18n="retry">补下未完成的论文</button></div></div>
+<div class="save-location"><span data-i18n="saved_to">本机保存位置：</span><code id="save-path"></code><button id="folder" class="quiet" type="button" data-i18n="open_folder">打开文件夹</button></div>
+</section>
+</div>
+<footer><span data-i18n="privacy">在本机处理清单，仅向文献来源发送必要请求。</span><span id="version"></span></footer>
+</main></body></html>

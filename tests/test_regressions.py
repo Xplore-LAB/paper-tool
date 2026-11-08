@@ -41,8 +41,33 @@ class RegressionTests(unittest.TestCase):
                 self.assertIn('paper-tool/src/paper_tool/browser/download.mjs', names)
                 self.assertIn('paper-tool/LICENSE', names)
                 self.assertIn('paper-tool/MANIFEST.in', names)
+                self.assertIn('paper-tool/src/paper_tool/web/index.html', names)
+                self.assertIn('paper-tool/skills/citecargo/SKILL.md', names)
                 self.assertFalse(any('/.local/' in name for name in names))
                 self.assertFalse(any('/.git/' in name or '/.local-auth/' in name or name.endswith(('.dpapi', '/.env', '.pdf')) for name in names))
+
+    def test_windows_bundle_covers_python_310_dependencies(self):
+        import zipfile
+        from scripts.release import build_windows, ROOT
+        import re
+        version = re.search(r'^version = "([^"]+)"', (ROOT / 'pyproject.toml').read_text(), re.M)[1]
+        with tempfile.TemporaryDirectory() as out:
+            folder = Path(out)
+            wheel = folder / f'paper_tool-{version}-py3-none-any.whl'
+            pdf = folder / 'pypdf-6.21.4-py3-none-any.whl'
+            typing = folder / 'typing_extensions-4.16.0-py3-none-any.whl'
+            destination = folder / 'windows.zip'
+            with self.assertRaises(ValueError):
+                build_windows(destination, wheel, [pdf])
+            self.assertFalse(destination.exists())
+            for file in (wheel, pdf, typing):
+                file.write_bytes(b'packaging fixture')
+            build_windows(destination, wheel, [pdf, typing])
+            with zipfile.ZipFile(destination) as archive:
+                names = archive.namelist()
+                self.assertIn('CiteCargo/Start-CiteCargo.cmd', names)
+                self.assertIn('CiteCargo/app/' + typing.name, names)
+                self.assertFalse(any('/.runtime/' in name for name in names))
 
     def test_version_cli_matches_package_metadata(self):
         import contextlib

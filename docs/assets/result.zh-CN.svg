@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="350" viewBox="0 0 1200 350" role="img" aria-labelledby="title desc">
+<title id="title">CiteCargo 真实开放获取结果</title>
+<desc id="desc">根据已完成的真实下载报告生成的结果摘要。</desc>
+<rect x="1" y="1" width="1198" height="348" rx="20" fill="#101e2c" stroke="#293b4d"/>
+<g font-family="'Noto Sans CJK SC', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif">
+<text x="38" y="43" font-size="12" fill="#90a7b7" font-weight="600" letter-spacing="2">真实开放获取结果</text>
+<rect x="1016" y="23" width="146" height="30" rx="15" fill="#153f36"/>
+<circle cx="1036" cy="38" r="4" fill="#68d9af"/>
+<text x="1049" y="43" font-size="12" font-weight="700" fill="#91edc9">已保存</text>
+<text x="38" y="98" font-size="27" font-weight="600" fill="#f2f6fa">共享详细研究数据</text>
+<text x="38" y="136" font-size="27" font-weight="600" fill="#f2f6fa">与更高的引用率相关（论文译名）</text>
+<text x="38" y="169" font-size="15" fill="#93acbd">PLOS ONE · 2007 · 开放获取</text>
+<line x1="38" y1="195" x2="1162" y2="195" stroke="#293c4b"/>
+<text x="38" y="224" font-size="11" fill="#7795a8" font-weight="700" letter-spacing="1.3">DOI</text>
+<text x="38" y="251" font-size="18" fill="#d9e7ee">10.1371/journal.pone.0000308</text>
+<text x="418" y="224" font-size="11" fill="#7795a8" font-weight="700" letter-spacing="1.3">页数</text>
+<text x="418" y="251" font-size="20" fill="#d9e7ee">5</text>
+<text x="570" y="224" font-size="11" fill="#7795a8" font-weight="700" letter-spacing="1.3">文件大小</text>
+<text x="570" y="251" font-size="20" fill="#d9e7ee">89.3 KiB</text>
+<text x="792" y="224" font-size="11" fill="#7795a8" font-weight="700" letter-spacing="1.3">文件校验值</text>
+<text x="792" y="251" font-size="18" fill="#d9e7ee" font-family="'DejaVu Sans Mono', monospace">b52ca44dfd09d240…</text>
+<rect x="24" y="280" width="1152" height="48" rx="10" fill="#182a38"/>
+<text x="38" y="310" font-size="14" fill="#b4cbd7" font-family="'DejaVu Sans Mono', monospace">10.1371_journal.pone.0000308.pdf</text>
+<text x="915" y="310" font-size="13" fill="#78d4b0">题名核验通过 · 已保存到本地</text>
+</g></svg>
