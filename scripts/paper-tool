@@ -8,10 +8,10 @@ while [ -L "$TASK_ENTRY" ]; do
     *) TASK_ENTRY=$TASK_LINK_DIR/$TASK_LINK ;;
   esac
 done
-TASK_DIR=$(CDPATH= cd -- "$(dirname -- "$TASK_ENTRY")" && pwd)
+TASK_DIR=$(CDPATH= cd -- "$(dirname -- "$TASK_ENTRY")/.." && pwd)
 if [ -x "$TASK_DIR/.venv/bin/python" ]; then
   PY="$TASK_DIR/.venv/bin/python"
 else
   PY=python3
 fi
-exec "$PY" "$TASK_DIR/paper_tool.py" "$@"
+exec "$PY" -m paper_tool.cli "$@"

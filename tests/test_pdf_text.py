@@ -4,7 +4,7 @@ try:
     from reportlab.pdfgen import canvas
 except ImportError:
     canvas = None
-import paper_to_zotero as m
+from paper_tool import core as m
 
 @unittest.skipIf(canvas is None, "reportlab is optional for PDF fixtures")
 class PdfSpacingTests(unittest.TestCase):

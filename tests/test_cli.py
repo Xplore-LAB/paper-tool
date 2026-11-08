@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 import unittest
 from unittest.mock import patch
-import paper_tool as t
+from paper_tool import cli as t
 
 
 class ToolTests(unittest.TestCase):
@@ -474,7 +474,7 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(t.batch_runner.GOOD_STATUS, t.GOOD_STATUS)
 
     def test_dry_run_plans_without_writing(self):
-        import batch_runner as b
+        from paper_tool import batch as b
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / 'batch'
             summary = b.run_batch(['10.1016/x1', '10.1002/x2'], out, dry_run=True,
@@ -486,7 +486,7 @@ class BatchTests(unittest.TestCase):
             self.assertIn('browser', summary['rows'][0]['route_estimate'])
 
     def test_checkpoint_is_created_from_the_list(self):
-        import batch_runner as b
+        from paper_tool import batch as b
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / 'batch'
             def runner(ref, args):
@@ -501,7 +501,7 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(summary['attached'], 3)
 
     def test_rerun_skips_confirmed_rows(self):
-        import batch_runner as b
+        from paper_tool import batch as b
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / 'batch'
             calls = []
@@ -517,7 +517,7 @@ class BatchTests(unittest.TestCase):
             self.assertTrue(summary['ok'])
 
     def test_failure_keeps_completed_rows_and_retries_only_that_row(self):
-        import batch_runner as b
+        from paper_tool import batch as b
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / 'batch'
             def runner(ref, args):
@@ -538,7 +538,7 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(rows['10.1/good']['attempts'], 1)
 
     def test_duplicate_references_run_once(self):
-        import batch_runner as b
+        from paper_tool import batch as b
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / 'batch'
             calls = []
@@ -554,7 +554,7 @@ class BatchTests(unittest.TestCase):
 
     def test_offline_recovery_uses_the_checkpoint_identity(self):
         import json
-        import batch_runner as b
+        from paper_tool import batch as b
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / 'batch'
             self.local_pdf(out)
@@ -573,7 +573,7 @@ class BatchTests(unittest.TestCase):
 
     def test_offline_recovery_still_requires_identity(self):
         import json
-        import batch_runner as b
+        from paper_tool import batch as b
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / 'batch'
             self.local_pdf(out)
@@ -590,7 +590,7 @@ class BatchTests(unittest.TestCase):
 
     def test_legacy_checkpoint_is_refused_instead_of_duplicated(self):
         import json
-        import batch_runner as b
+        from paper_tool import batch as b
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / 'batch'; out.mkdir(parents=True)
             (out / 'manifest.json').write_text(json.dumps(
@@ -601,7 +601,7 @@ class BatchTests(unittest.TestCase):
 
     def test_rows_outside_the_list_are_preserved(self):
         import json
-        import batch_runner as b
+        from paper_tool import batch as b
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / 'batch'; out.mkdir(parents=True)
             (out / 'manifest.json').write_text(json.dumps(
@@ -615,7 +615,7 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(rows[1]['number'], 10)
 
     def test_local_verified_pdf_is_reused_without_downloading(self):
-        import batch_runner as b
+        from paper_tool import batch as b
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / 'batch'
             pdf = self.local_pdf(out)
@@ -630,7 +630,7 @@ class BatchTests(unittest.TestCase):
             self.assertTrue(summary['ok'])
 
     def test_local_recovery_does_not_upload_a_second_attachment(self):
-        import batch_runner as b
+        from paper_tool import batch as b
         from unittest.mock import MagicMock
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / 'batch'
@@ -651,7 +651,7 @@ class BatchTests(unittest.TestCase):
             self.assertTrue(summary['ok'])
 
     def test_local_recovery_uploads_once_when_attachment_missing(self):
-        import batch_runner as b
+        from paper_tool import batch as b
         from unittest.mock import MagicMock
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / 'batch'
@@ -672,7 +672,7 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(row['attachment_key'], 'ATT')
 
     def test_rejected_local_pdf_is_kept_and_download_still_runs(self):
-        import batch_runner as b
+        from paper_tool import batch as b
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / 'batch'
             stale = self.local_pdf(out)
@@ -688,7 +688,7 @@ class BatchTests(unittest.TestCase):
             self.assertTrue(any('not reused' in note for note in row['warnings']))
 
     def test_unknown_collection_stops_before_any_write(self):
-        import batch_runner as b
+        from paper_tool import batch as b
         from unittest.mock import MagicMock
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / 'batch'
@@ -701,7 +701,7 @@ class BatchTests(unittest.TestCase):
             self.assertFalse((out / 'manifest.json').exists())
 
     def test_force_reruns_confirmed_rows(self):
-        import batch_runner as b
+        from paper_tool import batch as b
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / 'batch'
             calls = []
@@ -715,7 +715,7 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(calls, ['10.1/a', '10.1/a'])
 
     def test_interval_only_between_papers_that_used_the_network(self):
-        import batch_runner as b
+        from paper_tool import batch as b
         from unittest.mock import MagicMock
         sleep = MagicMock()
         with tempfile.TemporaryDirectory() as d:

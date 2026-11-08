@@ -10,12 +10,12 @@ import unittest
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
-import paper_to_zotero as m
+from paper_tool import core as m
 
 
 class TransportTest(unittest.TestCase):
-    @patch('local_auth_cache.save')
-    @patch('local_auth_cache.load', return_value='')
+    @patch('paper_tool.auth.save')
+    @patch('paper_tool.auth.load', return_value='')
     def test_authorization_item_upload_and_repeat_over_http(self, _load, _save):
         state = {"items": [], "uploaded": b"", "registered": False, "authorizations": 0,
                  'fail_upload_once': True}

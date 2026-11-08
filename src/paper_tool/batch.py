@@ -22,7 +22,7 @@ from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
-import paper_to_zotero as core
+from . import core
 
 # Identical to paper_tool.GOOD_STATUS: the attachment is confirmed. Kept as a
 # separate copy so this module stays importable on its own; a test asserts that
@@ -288,7 +288,7 @@ def run_batch(refs, out, *, zotero=False, collection=None, proxy='direct',
     if stream is None:
         stream = sys.stdout
     if runner is None:
-        import paper_tool
+        from . import cli as paper_tool
         runner = paper_tool.run_reference
     sleep = sleeper or time.sleep
     if metadata_only and not zotero:

@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import paper_to_zotero as m
+from paper_tool import core as m
 
 
 class FakeZotero:

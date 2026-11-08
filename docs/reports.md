@@ -1,8 +1,8 @@
 # 交付物：Excel 台账与完成情况汇报
 
-`deliverables.py` 是**只读导出器**：只读取 `--out` 下的 `manifest.json` /
+`src/paper_tool/reports.py` 是**只读导出器**：只读取 `--out` 下的 `manifest.json` /
 `report.json` 与可选 CLI 快照，不修改检查点、不联网、不调用 Zotero API、
-不解析 PDF 内容（仅判断文件是否存在）。Excel 用 OOXML 直接写出，仅依赖标准库。
+进度统计可复用 CLI 的只读文件核验逻辑。Excel 用 OOXML 直接写出，仅依赖标准库。
 
 ## 四个子命令
 
@@ -14,8 +14,8 @@
 | `both` | 一次生成台账 + 汇报 |
 
 ```powershell
-python deliverables.py translate-todo --out <批次目录>
-python deliverables.py both --out <批次目录> --collection '<完整路径>' --group '<课题组>'
+python -m paper_tool.reports translate-todo --out <批次目录>
+python -m paper_tool.reports both --out <批次目录> --collection '<完整路径>' --group '<课题组>'
 ```
 
 可用 `--xlsx <路径>`、`--translations <文件>` 指定别处输出与映射；加 `--json`
@@ -64,7 +64,7 @@ python deliverables.py both --out <批次目录> --collection '<完整路径>' -
 
 ## Windows 双击入口
 
-`generate-report.cmd` 把批次目录拖进窗口即可生成台账 + 汇报；课题组名称可放在
-同目录 `课题组.txt` 第一行，或作为第二个命令行参数传入。
-该启动器是 **GBK + CRLF**，由 `python _gen_launcher.py` 生成——改文案请改生成器模板，
-不要直接编辑 `.cmd`（详见 [`CONTRIBUTING.md`](../CONTRIBUTING.md)）。
+`scripts/windows/export.cmd` 把批次目录拖进窗口即可生成台账 + 汇报；课题组名称可放在
+仓库根目录的 `课题组.txt` 第一行，或作为第二个命令行参数传入。
+该启动器是 **GBK + CRLF**，由 `python scripts/windows/build_menu.py` 生成——改文案请改生成器模板，
+不要直接编辑 `.cmd`（详见 [`.github/CONTRIBUTING.md`](../.github/CONTRIBUTING.md)）。

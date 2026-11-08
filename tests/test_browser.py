@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 import unittest
 
-import paper_tool
+from paper_tool import cli as paper_tool
 
 
 @unittest.skipUnless(shutil.which('node'), 'Node is optional for OA-only downloads')
@@ -36,7 +36,7 @@ module.exports={chromium:{connectOverCDP:async()=>{
         env = dict(os.environ, PLAYWRIGHT_CORE_PATH=str(fake), TEST_FAIL=str(int(fail)),
                    TEST_RACE=str(int(race)), TEST_OUT=str(output))
         # Force the explicit fake even if a real Playwright exists in node_modules.
-        helper = paper_tool.ROOT / 'paper_tool_assets' / 'browser_pdf.mjs'
+        helper = paper_tool.ROOT / 'browser' / 'download.mjs'
         isolated = Path(folder) / 'browser_pdf.mjs'
         isolated.write_bytes(helper.read_bytes())
         result = subprocess.run(['node', str(isolated), '--pii', 'S0020025526007310',

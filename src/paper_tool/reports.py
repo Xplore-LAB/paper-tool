@@ -12,10 +12,10 @@
   * Excel 用 OOXML 直接写出，仅依赖 Python 标准库，不新增 requirements。
 
 用法：
-  python deliverables.py translate-todo --out <批次目录>     # 生成/补齐 标题翻译.json
-  python deliverables.py ledger  --out <批次目录> [--xlsx <路径>] [--translations f]
-  python deliverables.py summary --out <批次目录> [--progress-json f] [--audit-json f]
-  python deliverables.py both    --out <批次目录> [--collection ...] [--group ...]
+  python -m paper_tool.reports translate-todo --out <批次目录>     # 生成/补齐 标题翻译.json
+  python -m paper_tool.reports ledger  --out <批次目录> [--xlsx <路径>] [--translations f]
+  python -m paper_tool.reports summary --out <批次目录> [--progress-json f] [--audit-json f]
+  python -m paper_tool.reports both    --out <批次目录> [--collection ...] [--group ...]
 """
 from __future__ import annotations
 
@@ -622,10 +622,7 @@ def progress_data(out, rows, source_name, explicit=''):
             return payload, None, f'自动读取 {auto}'
     # 优先复用 CLI 自身的函数，保证汇报数字与 progress --json 完全同源
     try:
-        package_dir = str(Path(__file__).resolve().parent)
-        if package_dir not in sys.path:
-            sys.path.insert(0, package_dir)
-        import paper_tool  # noqa: F401  (只读导入，不执行 main)
+        from . import cli as paper_tool
         snapshot = paper_tool.progress_snapshot(str(Path(out).expanduser()))
         if snapshot.get('ok'):
             return snapshot, None, 'paper_tool.progress_snapshot（与 progress --json 同源）'
@@ -730,7 +727,7 @@ def build_summary(out, report_path=None, collection='', batch='',
     lines = [
         '# 文献批量下载入库 · 完成情况汇报',
         '',
-        f'> 由 `deliverables.py summary` 只读生成 · {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
+        f'> 由 `python -m paper_tool.reports summary` 只读生成 · {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
         '> 所有数字来自检查点与 CLI JSON 快照，可在 §七 复算；本脚本不写 Zotero、不改检查点。',
         '',
         '## 一、批次与输入',

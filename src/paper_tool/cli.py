@@ -13,9 +13,9 @@ from types import SimpleNamespace
 import time
 from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, build_opener
-import batch_runner
-import paper_to_zotero as core
-from paper_tool_assets import __version__
+from . import batch as batch_runner
+from . import core
+from . import __version__
 ROOT = Path(__file__).resolve().parent
 DEFAULT_OUT = Path(os.environ.get('PAPER_TOOL_OUT') or Path.cwd() / 'downloads').expanduser()
 DEFAULT_ZOTERO = os.environ.get('PAPER_TOOL_ZOTERO_BASE') or core.BASE
@@ -418,7 +418,7 @@ def run_reference(reference, args):
                 path=target
             else:
                 try:
-                    process = subprocess.run(['node',str(ROOT/'paper_tool_assets'/'browser_pdf.mjs'),'--pii',pii,'--out',str(target),'--cdp',args.cdp,'--proxy',args.proxy],capture_output=True,text=True,timeout=180)
+                    process = subprocess.run(['node',str(ROOT/'browser'/'download.mjs'),'--pii',pii,'--out',str(target),'--cdp',args.cdp,'--proxy',args.proxy],capture_output=True,text=True,timeout=180)
                 except (OSError, subprocess.TimeoutExpired) as error:
                     process = SimpleNamespace(returncode=1, stderr='')
                     result['warnings'].append('Browser download did not complete: '+str(error))
@@ -470,9 +470,9 @@ def run_reference(reference, args):
     return result
 
 
-def main(argv=None):
-    parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--version', action='version', version='paper-tool '+__version__)
+def main(argv=None, *, prog="paper-tool"):
+    parser=argparse.ArgumentParser(prog=prog, description=__doc__)
+    parser.add_argument('--version', action='version', version=prog+' '+__version__)
     commands=parser.add_subparsers(dest='command',required=True)
     doc = commands.add_parser('doctor',help='Check browser, Zotero and (if needed) VPN proxy ports')
     doc.add_argument('--proxy',default=DEFAULT_PROXY,help='Use direct for the native VPN route, or an HTTP proxy URL')
@@ -706,6 +706,10 @@ def main(argv=None):
             temp=target/'report.json.tmp';temp.write_text(json.dumps({'results':rows},ensure_ascii=False,indent=2),encoding='utf-8');temp.replace(target/'report.json')
     good={'PDF_SAVED','PDF_ATTACHED','PDF_ALREADY_PRESENT'} if args.command=='fetch' else {'PREVIEW'}
     return 0 if results and all(r['status'] in good and r.get('zotero') not in {'COLLECTION_REVIEW','WRITE_PENDING'} for r in results) else 2
+
+
+def app(argv=None):
+    return main(argv, prog="citecargo")
 
 
 if __name__=='__main__':

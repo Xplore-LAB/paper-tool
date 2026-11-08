@@ -3,10 +3,10 @@ name: paper-tool
 description: 把 DOI 或参考文献变成「已核验身份的 PDF」，可选写入已有 Zotero 分类；适用于文献批量下载入库、附件完整性核查、中断续跑与 Agent 调用。不适用于绕过付费墙、新建分类或非 Elsevier 订阅全文。
 ---
 
-# paper-tool：Agent 技能契约
+# CiteCargo：Agent 技能契约
 
 把本文件复制到 `~/.workbuddy/skills/paper-tool/SKILL.md` 即可在对话中自动加载。
-命令与验收依据见 [`SOP.md`](SOP.md)，字段口径见 [`deliverables.md`](deliverables.md)，
+命令与验收依据见 [`usage.md`](usage.md)，字段口径见 [`reports.md`](reports.md)，
 功能概览见 [`README.md`](../README.md)。**代码是最终事实。**
 
 ## 1. 目标与边界
@@ -30,19 +30,19 @@ description: 把 DOI 或参考文献变成「已核验身份的 PDF」，可选�
 ## 3. 命令速查
 
 ```powershell
-.\paper-tool.cmd fetch '<DOI>' --out <PDF目录>
-.\paper-tool.cmd batch --input refs.txt --out <批次目录>
-.\paper-tool.cmd doctor --deep
-.\paper-tool.cmd collections --json
-.\paper-tool.cmd preview '<DOI 或参考文献>'
-.\paper-tool.cmd batch --input refs.txt --out <批次目录> --zotero --collection '<完整路径>' --dry-run
-.\paper-tool.cmd batch --input refs.txt --out <批次目录> --zotero --collection '<完整路径>' --oa-only --interval 0
-.\paper-tool.cmd batch --input refs-doi.txt --out <批次目录> --zotero --collection '<完整路径>' --metadata-only --interval 0
-.\paper-tool.cmd progress --out <批次目录> --json
-.\paper-tool.cmd audit    --out <批次目录> --json
-.\paper-tool.cmd failures --out <批次目录> --json
-python deliverables.py translate-todo --out <批次目录>
-python deliverables.py both --out <批次目录> --collection '<完整路径>' --group '<课题组>'
+citecargo fetch '<DOI>' --out <PDF目录>
+citecargo batch --input refs.txt --out <批次目录>
+citecargo doctor --deep
+citecargo collections --json
+citecargo preview '<DOI 或参考文献>'
+citecargo batch --input refs.txt --out <批次目录> --zotero --collection '<完整路径>' --dry-run
+citecargo batch --input refs.txt --out <批次目录> --zotero --collection '<完整路径>' --oa-only --interval 0
+citecargo batch --input refs-doi.txt --out <批次目录> --zotero --collection '<完整路径>' --metadata-only --interval 0
+citecargo progress --out <批次目录> --json
+citecargo audit    --out <批次目录> --json
+citecargo failures --out <批次目录> --json
+python -m paper_tool.reports translate-todo --out <批次目录>
+python -m paper_tool.reports both --out <批次目录> --collection '<完整路径>' --group '<课题组>'
 ```
 
 九个命令：`doctor` / `browser` / `collections` / `preview` / `fetch` / `batch` /

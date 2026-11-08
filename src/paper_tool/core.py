@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Reference text -> verified metadata -> legal OA PDF -> existing Zotero collection.
 
-Shared library used by ``paper_tool.py``. Except for pypdf (PDF identity
+Shared library used by the CiteCargo CLI. Except for pypdf (PDF identity
 verification) it only depends on the Python standard library. The preferred
-entry point is ``python paper_tool.py <command>``; the legacy ``--apply``
+entry point is ``python -m paper_tool <command>``; the legacy ``--apply``
 CLI in this file is kept for backwards compatibility.
 """
 
@@ -365,7 +365,7 @@ class ZoteroLocal:
         self._collections_cache = None
         self._connect()
         if not self.key:
-            from local_auth_cache import load
+            from .auth import load
             self.key = load(self.server_id)
 
     def _connect(self):
@@ -396,7 +396,7 @@ class ZoteroLocal:
         authorization = json.loads(body)
         self.key = authorization["key"]
         if authorization.get("remember"):
-            from local_auth_cache import save
+            from .auth import save
             save(self.server_id, self.key)
 
     def collections(self) -> list[dict]:

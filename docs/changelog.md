@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## 1.1.0 — CiteCargo
+
+- Introduced CiteCargo (文献直达) and the `citecargo` command; retained `paper-tool`.
+- Consolidated implementation into `src/paper_tool/` with explicit module roles.
+- Moved launchers/build tools to `scripts/`, guides to `docs/`, templates to `examples/`.
+- Reduced the repository root to standard project files and shortened both landing pages.
+- Consolidated dependency declarations in `pyproject.toml`.
+
 ## 1.0.0
 
 First public release. The stable interface is the documented CLI, exit codes and

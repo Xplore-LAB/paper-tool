@@ -1,10 +1,10 @@
-include LICENSE AGENTS.md DESIGN.md README.md CHANGELOG.md CONTRIBUTING.md
-include requirements.txt requirements-dev.txt .env.example .gitattributes .gitignore
-include paper-tool paper-tool.cmd browser_pdf.mjs build_release.py _gen_launcher.py generate-report.cmd progress.cmd
-recursive-include paper_tool_assets *.py *.mjs
+include LICENSE AGENTS.md README.md pyproject.toml .gitattributes .gitignore
+include .github/CONTRIBUTING.md
+recursive-include src *.py *.mjs
 recursive-include tests *.py
 recursive-include docs *.md
-recursive-include examples *.py *.txt
+recursive-include scripts *.py *.cmd *.mjs
+recursive-include examples *.py *.txt *.example
 prune .git
 prune .local
 prune release

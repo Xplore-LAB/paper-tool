@@ -1,8 +1,7 @@
 # Architecture and validation
 
-The public interface is the `paper-tool` CLI; the implementation modules are
-internal and may change. See README.md for the supported command/exit-code
-contract and docs/SOP.md for operational steps.
+The public interface is the `citecargo` CLI, with `paper-tool` compatibility; the implementation modules are
+internal and may change. See usage.md for the command/exit-code contract and operational steps.
 
 ```mermaid
 flowchart TD
@@ -22,11 +21,11 @@ flowchart TD
     U --> R
 ```
 
-- `paper_tool.py`: CLI, single-paper flow, progress/audit/failure commands.
-- `paper_to_zotero.py`: metadata services, verification, downloads, Zotero protocol.
-- `batch_runner.py`: per-paper recovery and atomic checkpoint updates.
-- `paper_tool_assets/browser_pdf.mjs`: optional CDP/Playwright institutional route.
-- `deliverables.py`: optional local spreadsheet and completion-report export.
+- `src/paper_tool/cli.py`: CLI, single-paper flow, progress/audit/failure commands.
+- `src/paper_tool/core.py`: metadata services, verification, downloads, Zotero protocol.
+- `src/paper_tool/batch.py`: per-paper recovery and atomic checkpoint updates.
+- `src/paper_tool/browser/download.mjs`: optional CDP/Playwright institutional route.
+- `src/paper_tool/reports.py`: optional local spreadsheet and completion-report export.
 
 Download and archive state are separate. A checksum match permits a download
 skip; an archival run rechecks the current collection and attachment state.

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paper-tool"
-version = "1.0.0"
-description = "Resolve references or DOIs into verified PDFs and existing Zotero collections"
+version = "1.1.0"
+description = "CiteCargo: turn reference lists into verified PDFs, with optional Zotero filing"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -30,12 +30,11 @@ Homepage = "https://github.com/Xplore-LAB/paper-tool"
 Issues = "https://github.com/Xplore-LAB/paper-tool/issues"
 
 [project.scripts]
-paper-tool = "paper_tool:main"
+citecargo = "paper_tool.cli:app"
+paper-tool = "paper_tool.cli:main"
 
-[tool.setuptools]
-py-modules = ["paper_tool", "paper_to_zotero", "batch_runner", "deliverables", "local_auth_cache"]
-
-packages = ["paper_tool_assets"]
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.setuptools.package-data]
-paper_tool_assets = ["*.mjs"]
+paper_tool = ["browser/*.mjs"]

@@ -6,10 +6,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import batch_runner as b
-import deliverables
-import paper_to_zotero as core
-import paper_tool as t
+from paper_tool import batch as b
+from paper_tool import reports as deliverables
+from paper_tool import core
+from paper_tool import cli as t
 
 
 def bare_client():

@@ -2,8 +2,8 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from tests import test_tool
-import paper_tool as t
+from tests import test_cli as test_tool
+from paper_tool import cli as t
 
 
 class RegressionTests(unittest.TestCase):
@@ -33,12 +33,12 @@ class RegressionTests(unittest.TestCase):
 
     def test_release_excludes_machine_state(self):
         import zipfile
-        from build_release import build_release
+        from scripts.release import build_release
         with tempfile.TemporaryDirectory() as out:
             archive = build_release(Path(out) / 'release.zip')
             with zipfile.ZipFile(archive) as bundle:
                 names = bundle.namelist()
-                self.assertIn('paper-tool/paper_tool_assets/browser_pdf.mjs', names)
+                self.assertIn('paper-tool/src/paper_tool/browser/download.mjs', names)
                 self.assertIn('paper-tool/LICENSE', names)
                 self.assertIn('paper-tool/MANIFEST.in', names)
                 self.assertFalse(any('/.local/' in name for name in names))
@@ -48,7 +48,7 @@ class RegressionTests(unittest.TestCase):
         import contextlib
         import io
         import re
-        metadata = (t.ROOT / 'pyproject.toml').read_text()
+        metadata = (t.ROOT.parents[1] / 'pyproject.toml').read_text()
         declared = re.search(r'^version = "([^"]+)"', metadata, re.M).group(1)
         output = io.StringIO()
         with contextlib.redirect_stdout(output), self.assertRaises(SystemExit) as exit:
@@ -63,3 +63,14 @@ class RegressionTests(unittest.TestCase):
         self.assertTrue(result['ok'])
         ports = {call.args[0][1] for call in connect.call_args_list}
         self.assertEqual(ports, {9081, 18806, 33129})
+
+    def test_new_and_compatible_module_entry_points(self):
+        import subprocess
+        import sys
+        from paper_tool import __version__
+        for module, command in [('paper_tool', 'citecargo'), ('paper_tool.cli', 'paper-tool')]:
+            with self.subTest(module=module):
+                result = subprocess.run([sys.executable, '-m', module, '--version'],
+                                        capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), command+' '+__version__)

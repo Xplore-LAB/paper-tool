@@ -1,2 +1,0 @@
-# Runtime dependency: PDF identity verification (first-page title / DOI check).
-pypdf>=4.0,<7

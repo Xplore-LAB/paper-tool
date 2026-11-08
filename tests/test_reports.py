@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""deliverables.py 的离线测试：只读性、三种检查点格式、18 列台账、xlsx 合法性、汇报数字自洽。
+"""reports 模块的离线测试：只读性、三种检查点格式、18 列台账、xlsx 合法性、汇报数字自洽。
 
 全部使用 tempfile，不触碰真实批次目录、不联网、不打开任何 PDF。
 """
@@ -14,7 +14,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-import deliverables as d
+from paper_tool import reports as d
 
 
 def write_json(folder, name, payload, encoding='utf-8'):

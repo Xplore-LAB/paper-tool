@@ -1,7 +1,7 @@
-# paper-tool: contributor and research-agent entry point
+# CiteCargo: contributor and research-agent entry point
 
-Read README.md and docs/SOP.md before changing or using the pipeline. This is a
-CLI for DOI/reference resolution, verified PDF retrieval and optional Zotero
+Read README.md and docs/usage.md before changing or using the pipeline. This is a
+CiteCargo CLI (`paper-tool` remains compatible) for DOI/reference resolution, verified PDF retrieval and optional Zotero
 archiving. Do not create a second downloader or a background service.
 
 ## Downloading papers
@@ -22,14 +22,14 @@ archiving. Do not create a second downloader or a background service.
 
 ## Maintaining the program
 
-- Follow the public CLI/status contract in README.md. Keep downloaded artifacts,
+- Follow the public CLI/status contract in docs/usage.md. Keep downloaded artifacts,
   credentials, profiles, personal collections and local machine notes out of Git.
 - Never print API keys, VPN credentials, cookies or temporary signed PDF URLs.
 - Preserve existing PDF files and Zotero items. Interrupted uploads should reuse
   their original attachment records with the upload protocol's preconditions.
 - Run `python -m unittest discover -v` after functional changes. Tests may use
   loopback HTTP and fake Playwright, but never real external services or libraries.
-- Build wheels/source archives with `python -m build`; use `build_release.py` for
+- Build wheels/source archives with `python -m build`; use `scripts/release.py` for
   the allowlisted downloadable ZIP, including LICENSE and tests.
 - If `.local/AGENTS.md` exists, read it for this machine's connection details.
   That file is private and ignored; never copy it into a public artifact.

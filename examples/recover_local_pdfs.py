@@ -6,7 +6,7 @@ script is kept as a standalone example and as a test fixture.
 """
 import json,re,os
 from pathlib import Path
-import paper_to_zotero as core
+from paper_tool import core
 
 MANIFEST = Path(os.environ.get('PAPER_MANIFEST', 'batch/manifest.json'))
 PDF_DIR = Path(os.environ.get('PAPER_PDF_DIR', 'batch/PDF'))

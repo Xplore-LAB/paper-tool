@@ -11,9 +11,9 @@ from unittest.mock import MagicMock, patch
 from pypdf import PdfWriter
 from pypdf.generic import DictionaryObject, NameObject, DecodedStreamObject
 
-import batch_runner as b
-import paper_tool as t
-import paper_to_zotero as core
+from paper_tool import batch as b
+from paper_tool import cli as t
+from paper_tool import core
 
 
 def make_pdf(path, title='A verified paper about oxygen supply networks'):
