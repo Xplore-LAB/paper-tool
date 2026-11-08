@@ -161,8 +161,8 @@ python build_release.py dist/paper-tool-1.0.0-source.zip
 ```
 
 离线测试使用临时目录、回环 HTTP 模拟服务器和 fake Playwright；不会访问真实
-论文服务或 Zotero 库。CI 覆盖 Linux、Windows、macOS 与 Python 3.10/3.13，
-并检查安装包。可选的 `deliverables.py` 提供本地 Excel 台账与完成情况导出。
+论文服务或 Zotero 库。CI 配置覆盖 Linux、Windows、macOS 与 Python 3.10/3.13，
+并检查安装包；实际执行状态见工作流和对应 Release 的验证说明。可选的 `deliverables.py` 提供本地 Excel 台账与完成情况导出。
 
 更多说明：[SOP](docs/SOP.md)、[架构](DESIGN.md)、[贡献指南](CONTRIBUTING.md)、
 [变更记录](CHANGELOG.md)。MIT 许可证见 [LICENSE](LICENSE)。
