@@ -1,0 +1,10 @@
+* text=auto eol=lf
+
+# Windows launchers are stored as UTF-8 in the repo and checked out as GBK/CRLF.
+# generate-report.cmd contains Chinese prompts; keep its working copy GBK.
+*.cmd text eol=crlf working-tree-encoding=GBK
+*.bat text eol=crlf working-tree-encoding=GBK
+
+*.pdf binary
+*.xlsx binary
+*.png binary

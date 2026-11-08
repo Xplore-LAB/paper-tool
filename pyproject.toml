@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "paper-tool"
+version = "1.0.0"
+description = "Resolve references or DOIs into verified PDFs and existing Zotero collections"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "paper-tool contributors" }]
+keywords = ["zotero", "doi", "crossref", "openalex", "pdf", "reference", "bibliography"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Utilities",
+]
+dependencies = ["pypdf>=4.0,<7"]
+
+[project.optional-dependencies]
+dev = ["reportlab>=4.0", "build>=1.2,<2"]
+
+[project.urls]
+Homepage = "https://github.com/Xplore-LAB/paper-tool"
+Issues = "https://github.com/Xplore-LAB/paper-tool/issues"
+
+[project.scripts]
+paper-tool = "paper_tool:main"
+
+[tool.setuptools]
+py-modules = ["paper_tool", "paper_to_zotero", "batch_runner", "deliverables", "local_auth_cache"]
+
+packages = ["paper_tool_assets"]
+
+[tool.setuptools.package-data]
+paper_tool_assets = ["*.mjs"]

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Reference text -> verified metadata -> legal OA PDF -> existing Zotero collection.
 
-Zero external dependencies except pypdf (for PDF identity verification). The
-default mode is a read-only preview: use --apply for Zotero writes/downloads.
+Shared library used by ``paper_tool.py``. Except for pypdf (PDF identity
+verification) it only depends on the Python standard library. The preferred
+entry point is ``python paper_tool.py <command>``; the legacy ``--apply``
+CLI in this file is kept for backwards compatibility.
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ import time
 import unicodedata
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlparse, urlunparse
-from urllib.request import Request, urlopen, build_opener, ProxyHandler
+from urllib.request import Request, urlopen, build_opener, ProxyHandler, url2pathname
 import uuid
 
 BASE = "http://127.0.0.1:23119/api"
@@ -28,6 +30,7 @@ DOI_RE = re.compile(r"(?:https?://(?:dx\.)?doi\.org/|doi\s*:\s*)?(10\.\d{4,9}/[^
 WORDS = re.compile(r"[a-z0-9]{3,}")
 STOPWORDS = set("the and for with from into using based through model method long term new study data research paper analysis of to in on a an by".split())
 MAX_PDF = 60 * 1024 * 1024
+CONFERENCE_TYPES = {"proceedings-article", "proceedings", "conference-paper"}
 PDF_PROXY = None
 PDF_URLS = []
 PDF_RATE_KIB = 0.0
@@ -118,6 +121,7 @@ def crossref_metadata(reference: str, *, demo=False) -> tuple[dict, float]:
 
 def paper_from_crossref(rec: dict) -> dict:
     date_parts = (rec.get("published") or rec.get("issued") or {}).get("date-parts") or [[""]]
+    event = rec.get("event") or {}
     return {
         "title": (rec.get("title") or [""])[0],
         "doi": (rec.get("DOI") or "").lower(),
@@ -128,6 +132,39 @@ def paper_from_crossref(rec: dict) -> dict:
         "issue": rec.get("issue", ""),
         "pages": rec.get("page") or rec.get("article-number") or "",
         "url": rec.get("URL") or ("https://doi.org/" + rec.get("DOI", "")),
+        "type": rec.get("type") or "",
+        "event_name": event.get("name") or "",
+        "event_acronym": event.get("acronym") or "",
+        "event_place": event.get("location") or "",
+    }
+
+
+def paper_from_zotero(item: dict) -> dict:
+    """Rebuild the standard paper dict from an existing Zotero item.
+
+    When a DOI is already in the library the bibliographic record is available
+    locally, so the metadata-only path needs no Crossref request at all.
+    """
+    authors = [{"first": c.get("firstName", ""), "last": c.get("lastName", "")}
+               for c in (item.get("creators") or [])
+               if c.get("creatorType") == "author"]
+    year = re.search(r"(?:19|20)\d{2}", str(item.get("date") or ""))
+    conference = item.get("itemType") == "conferencePaper"
+    doi = str(item.get("DOI") or "").lower()
+    return {
+        "title": item.get("title") or "",
+        "doi": doi,
+        "authors": authors,
+        "journal": item.get("proceedingsTitle") or item.get("publicationTitle") or "",
+        "year": year.group(0) if year else "",
+        "volume": item.get("volume", ""),
+        "issue": item.get("issue", ""),
+        "pages": item.get("pages", ""),
+        "url": item.get("url") or ("https://doi.org/" + doi),
+        "type": "proceedings-article" if conference else "journal-article",
+        "event_name": item.get("conferenceName") or "",
+        "event_acronym": item.get("conferenceName") or "",
+        "event_place": item.get("eventPlace") or "",
     }
 
 
@@ -211,11 +248,55 @@ def verify_pdf(path: Path, paper: dict) -> tuple[bool, str]:
             best = 0
         if best >= 0.87:
             return True, "First-page title verified" + ("; DOI also present" if normalized_doi and normalized_doi in content else "")
+        # Some publisher PDFs extract every word without spaces. Still require
+        # an exact full title near the top, the DOI, and the first author's name.
+        compact = content.replace(" ", "")
+        title = "".join(title_words)
+        authors = paper.get("authors") or []
+        author = normalized(authors[0].get("first", "") + authors[0].get("last", "")).replace(" ", "") if authors else ""
+        if (len(title) >= 40 and title in compact[:2000] and author and author in compact
+                and normalized_doi and normalized_doi.replace(" ", "") in compact):
+            return True, "Exact first-page title, DOI and author verified after removing extraction spaces"
         return False, f"PDF identity unclear (contiguous title similarity={best:.2f})"
     except ImportError:
         return False, "Install pypdf to verify PDF identity"
     except Exception as error:
         return False, f"Unreadable PDF: {error}"
+
+
+def pdf_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open('rb') as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def checkpoint_pdf_valid(row: dict) -> bool:
+    """Trust a previously verified file only while its bytes remain unchanged.
+
+    Legacy checkpoints without a digest must pass identity verification again.
+    This check never contacts Zotero or a metadata service.
+    """
+    pdf = row.get('pdf')
+    if not pdf:
+        return False
+    path = Path(pdf)
+    try:
+        if not path.is_file():
+            return False
+        with path.open('rb') as handle:
+            if handle.read(5) != b'%PDF-':
+                return False
+        digest = row.get('sha256')
+        if digest:
+            return pdf_sha256(path) == digest
+        paper = row.get('paper') or row
+        if not paper.get('doi') or not paper.get('title'):
+            return False
+        return verify_pdf(path, paper)[0]
+    except OSError:
+        return False
 
 
 def download_verified(paper: dict, candidates: list[dict], out: Path) -> tuple[Path | None, dict | None, list[str]]:
@@ -280,7 +361,12 @@ class ZoteroLocal:
         self.base = base.rstrip("/")
         self.key = os.environ.get("ZOTERO_LOCAL_API_KEY", "")
         self.server_id = None
+        self._items_cache = None
+        self._collections_cache = None
         self._connect()
+        if not self.key:
+            from local_auth_cache import load
+            self.key = load(self.server_id)
 
     def _connect(self):
         _status, headers, _body, _url = request_bytes("GET", self.base + "/")
@@ -306,10 +392,17 @@ class ZoteroLocal:
 
     def authorize(self):
         payload = json.dumps({"appName": "Reference-to-PDF Zotero MVP"}).encode()
-        _s, _h, body, _url = request_bytes("POST", self.base + "/local/authorize", payload=payload, headers={"Content-Type": "application/json", "Zotero-Server-ID": self.server_id}, timeout=90)
-        self.key = json.loads(body)["key"]
+        _s, _h, body, _url = request_bytes("POST", self.base + "/local/authorize", payload=payload, headers={"Content-Type": "application/json", "Zotero-Server-ID": self.server_id}, timeout=300)
+        authorization = json.loads(body)
+        self.key = authorization["key"]
+        if authorization.get("remember"):
+            from local_auth_cache import save
+            save(self.server_id, self.key)
 
     def collections(self) -> list[dict]:
+        cached = getattr(self, "_collections_cache", None)
+        if cached is not None:
+            return list(cached)
         raw = self.all_pages("/users/0/collections")
         entries = [x.get("data", x) for x in raw]
         by_key = {x["key"]: x for x in entries}
@@ -323,11 +416,19 @@ class ZoteroLocal:
                 names.insert(0, x["name"])
                 parent = x.get("parentCollection")
             return "/".join(names)
-        return [{"key": c["key"], "name": c["name"], "path": path(c)} for c in entries]
+        result = [{"key": c["key"], "name": c["name"], "path": path(c)} for c in entries]
+        self._collections_cache = result
+        return list(result)
 
     def items(self) -> list[dict]:
+        cached = getattr(self, "_items_cache", None)
+        if cached is not None:
+            return list(cached)
         raw = self.all_pages("/users/0/items?itemType=-attachment")
-        return [x.get("data", x) for x in raw if x.get("data", x).get("itemType") not in {"attachment", "note", "annotation"}]
+        result = [x.get("data", x) for x in raw
+                  if x.get("data", x).get("itemType") not in {"attachment", "note", "annotation"}]
+        self._items_cache = result
+        return list(result)
 
     def collection_items(self, collection_key: str) -> list[dict]:
         raw, _ = self.call("GET", f"/users/0/collections/{collection_key}/items?itemType=-attachment&limit=40")
@@ -354,35 +455,94 @@ class ZoteroLocal:
         saved = (raw.get("successful") or {}).get("0")
         if not saved:
             raise PaperError(f"Zotero rejected new item: {raw.get('failed')}")
-        return (saved.get("data") or saved)["key"]
+        data = saved.get("data") or saved
+        cache = getattr(self, "_items_cache", None)
+        if cache is not None and data.get("itemType") not in {"attachment", "note", "annotation"}:
+            cache.append(data)
+        return data["key"]
 
     def ensure_item(self, paper: dict, collection_key: str) -> tuple[str, bool]:
         existing = next((x for x in self.items() if x.get("DOI", "").lower() == paper["doi"]), None)
         if existing:
             if collection_key not in (existing.get("collections") or []):
                 merged = list(dict.fromkeys([*(existing.get("collections") or []), collection_key]))
-                self.call("PATCH", f"/users/0/items/{existing['key']}", {"collections": merged, "version": existing["version"]})
+                _, headers = self.call("PATCH", f"/users/0/items/{existing['key']}", {"collections": merged, "version": existing["version"]})
+                existing["collections"] = merged
+                version = next((v for k, v in headers.items()
+                                if k.lower() == 'last-modified-version'), None)
+                if version is not None:
+                    existing['version'] = int(version)
+                else:
+                    # A later PATCH must reload versions rather than reuse stale data.
+                    self._items_cache = None
             return existing["key"], False
+        is_conference = str(paper.get("type") or "").lower() in CONFERENCE_TYPES
         entry = {
-            "itemType": "journalArticle", "title": paper["title"], "DOI": paper["doi"],
-            "publicationTitle": paper["journal"], "date": paper["year"],
+            "itemType": "conferencePaper" if is_conference else "journalArticle",
+            "title": paper["title"], "DOI": paper["doi"], "date": paper["year"],
             "volume": paper["volume"], "issue": paper["issue"], "pages": paper["pages"],
             "url": paper["url"], "collections": [collection_key],
             "creators": [{"creatorType": "author", "firstName": x["first"], "lastName": x["last"]} for x in paper["authors"]],
             "tags": [],
         }
+        if is_conference:
+            entry["proceedingsTitle"] = paper["journal"]
+            entry["conferenceName"] = paper.get("event_acronym") or paper.get("event_name") or ""
+            if paper.get("event_place"):
+                entry["eventPlace"] = paper["event_place"]
+        else:
+            entry["publicationTitle"] = paper["journal"]
         return self.write_item(entry), True
 
     def has_pdf(self, key: str) -> bool:
         return any(x.get("itemType") == "attachment" and (x.get("contentType") == "application/pdf" or str(x.get("filename", "")).lower().endswith(".pdf")) for x in self.children(key))
 
+    def ensure_pdf(self, parent_key: str, pdf: Path, paper: dict) -> dict:
+        """Verify a live attachment, or resume a missing stored-file upload.
+
+        A remote file:// path belongs to the Zotero computer. Do not mistake it
+        for a missing local file. Matching MD5s can be checked by Zotero itself
+        using phase one of its upload protocol, including over SSH forwarding.
+        """
+        health = attachment_health(self, parent_key, paper)
+        attachments = health['pdf_attachments']
+        for item in attachments:
+            if item.get('verified'):
+                return {'status': 'PDF_ALREADY_PRESENT',
+                        'attachment_key': item['attachment_key']}
+        md5 = hashlib.md5(pdf.read_bytes()).hexdigest()
+        for item in attachments:
+            if item.get('linkMode') not in {'imported_file', 'imported_url'}:
+                continue
+            if item.get('missing') or (item.get('state') == 'UNVERIFIED'
+                                       and item.get('md5') == md5):
+                uploaded = self._upload_pdf_file(item['attachment_key'], pdf,
+                                                 previous_md5=item.get('md5'))
+                return {'status': 'PDF_ATTACHED' if uploaded else 'PDF_ALREADY_PRESENT',
+                        'attachment_key': item['attachment_key']}
+        if attachments:
+            raise PaperError('Existing PDF attachment cannot be verified or safely repaired; '
+                             'retained without overwriting. Run audit on the Zotero computer.')
+        return {'status': 'PDF_ATTACHED', 'attachment_key': self.upload_pdf(parent_key, pdf)}
+
     def upload_pdf(self, parent_key: str, pdf: Path) -> str:
         attachment_key = self.write_item({"itemType": "attachment", "parentItem": parent_key, "linkMode": "imported_file", "title": "PDF", "contentType": "application/pdf", "filename": pdf.name, "tags": []})
+        self._upload_pdf_file(attachment_key, pdf)
+        return attachment_key
+
+    def _upload_pdf_file(self, attachment_key: str, pdf: Path, *, previous_md5=None) -> bool:
+        """Upload to an existing record; return False if Zotero confirms the MD5.
+
+        Reuse the same precondition in authorization and registration, so another
+        application's attachment changes are never silently overwritten.
+        """
         md5 = hashlib.md5(pdf.read_bytes()).hexdigest()
         data = urlencode({"md5": md5, "filename": pdf.name, "filesize": pdf.stat().st_size, "mtime": int(pdf.stat().st_mtime * 1000)}).encode()
-        response, _ = self.call("POST", f"/users/0/items/{attachment_key}/file", data, headers={"Content-Type": "application/x-www-form-urlencoded", "If-None-Match": "*"})
+        condition = {'If-Match': previous_md5} if previous_md5 else {'If-None-Match': '*'}
+        headers = {"Content-Type": "application/x-www-form-urlencoded", **condition}
+        response, _ = self.call("POST", f"/users/0/items/{attachment_key}/file", data, headers=headers)
         if response.get("exists"):
-            return attachment_key
+            return False
         upload_url = response["url"]
         if urlparse(upload_url).hostname not in {"localhost", "127.0.0.1", "::1"}:
             raise PaperError("Local Zotero upload URL is not loopback; refused")
@@ -394,8 +554,67 @@ class ZoteroLocal:
         status, _h, _b, _url = request_bytes("POST", upload_url, payload=body, headers={"Content-Type": response.get("contentType", "application/octet-stream")})
         if status != 201:
             raise PaperError(f"Local Zotero file upload failed: HTTP {status}")
-        self.call("POST", f"/users/0/items/{attachment_key}/file", urlencode({"upload": response["uploadKey"]}).encode(), headers={"Content-Type": "application/x-www-form-urlencoded", "If-None-Match": "*"})
-        return attachment_key
+        self.call("POST", f"/users/0/items/{attachment_key}/file", urlencode({"upload": response["uploadKey"]}).encode(), headers=headers)
+        return True
+
+
+def attachment_health(zotero, item_key: str, paper=None) -> dict:
+    """Read-only: does the item have one PDF attachment whose file really exists?
+
+    `has_pdf` only reads attachment metadata. An attachment can survive while its
+    stored file is gone, so the file itself is resolved through Zotero's
+    `file/view/url` endpoint and checked on disk.
+    """
+    pdf_children = [x for x in zotero.children(item_key)
+                    if x.get("itemType") == "attachment"
+                    and (x.get("contentType") == "application/pdf"
+                         or str(x.get("filename", "")).lower().endswith(".pdf"))]
+    files = []
+    for child in pdf_children:
+        entry = {"attachment_key": child.get("key"), "filename": child.get("filename", ""),
+                 "linkMode": child.get('linkMode'), 'md5': child.get('md5'),
+                 "file": None, "exists": False, 'verified': False,
+                 'missing': False, 'state': 'UNVERIFIED'}
+        try:
+            uri = request_bytes("GET", zotero.base + f"/users/0/items/{child['key']}/file/view/url",
+                                headers={'Zotero-Server-ID': zotero.server_id},
+                                timeout=8)[2].decode().strip()
+            if urlparse(uri).scheme != 'file' or urlparse(uri).netloc not in {'', 'localhost'}:
+                raise PaperError('Unexpected attachment file URL')
+            path = Path(url2pathname(urlparse(uri).path))
+            entry["file"] = str(path)
+            entry["exists"] = path.is_file() and path.stat().st_size > 0
+            if entry['exists']:
+                if paper:
+                    valid, why = verify_pdf(path, paper)
+                else:
+                    try:
+                        from pypdf import PdfReader
+                        valid, why = bool(PdfReader(str(path), strict=False).pages), 'PDF readability checked'
+                    except Exception as error:
+                        valid, why = False, 'Unreadable PDF: '+str(error)
+                entry.update(verified=valid, state='OK' if valid else 'INVALID_FILE', reason=why)
+        except PaperError as error:
+            # 404 is evidence from Zotero; a remote file path missing on *our*
+            # filesystem is not. Network/auth failures must never trigger repair.
+            if 'HTTP 404 ' in str(error):
+                entry.update(missing=True, state='MISSING_FILE')
+            else:
+                entry['reason'] = str(error)
+        except (OSError, ValueError, ImportError) as error:
+            entry['reason'] = str(error)
+        files.append(entry)
+    if not files:
+        state = "NO_ATTACHMENT"
+    elif all(x['missing'] for x in files):
+        state = "MISSING_FILE"
+    elif not any(x['verified'] for x in files):
+        state = 'INVALID_FILE' if any(x['state'] == 'INVALID_FILE' for x in files) else 'UNVERIFIED'
+    elif len(files) > 1:
+        state = "DUPLICATE"
+    else:
+        state = "OK"
+    return {"state": state, "pdf_attachments": files}
 
 
 def choose_collection(zotero: ZoteroLocal, paper: dict, specified: str | None) -> tuple[dict | None, list[dict]]:
@@ -471,7 +690,8 @@ def process(reference: str, args, zotero=None) -> dict:
                 current = next((x for x in zotero.items() if x.get("DOI", "").lower() == paper["doi"]), None)
                 if current:
                     existing_key = current["key"]
-                    already_has_pdf = zotero.has_pdf(existing_key)
+                    already_has_pdf = any(x.get('verified') for x in
+                                          attachment_health(zotero, existing_key, paper)['pdf_attachments'])
             except PaperError as error:
                 result["warnings"].append("Could not check existing attachments: " + str(error))
         if already_has_pdf:
@@ -480,19 +700,23 @@ def process(reference: str, args, zotero=None) -> dict:
         else:
             file, location, errors = download_verified(paper, candidates, Path(args.out))
         result["warnings"].extend(errors)
+        attachment_result = None
         if file:
             result["pdf"] = str(file.resolve())
             result["pdf_location"] = location
+            result['sha256'] = pdf_sha256(file)
         if zotero and chosen:
             try:
                 key, created = zotero.ensure_item(paper, chosen["key"])
                 result["zotero"] = "created" if created else "reused"
                 result["zotero_key"] = key
-                if file and not zotero.has_pdf(key):
-                    result["attachment_key"] = zotero.upload_pdf(key, file)
+                if file:
+                    attachment_result = zotero.ensure_pdf(key, file, paper)
+                    result.update(attachment_result)
             except PaperError as error:
                 result["warnings"].append("Zotero write failed: " + str(error))
-        result["status"] = ("PDF_ALREADY_PRESENT" if already_has_pdf else ("PDF_ATTACHED" if result.get("attachment_key") else ("PDF_SAVED" if file else "PDF_PENDING")))
+        result["status"] = (attachment_result['status'] if attachment_result else
+                            ("PDF_ALREADY_PRESENT" if already_has_pdf else ("PDF_SAVED" if file else "PDF_PENDING")))
     else:
         result["status"] = "PREVIEW" if chosen or args.demo else "COLLECTION_REVIEW"
     return result

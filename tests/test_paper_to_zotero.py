@@ -140,5 +140,67 @@ class PaperWorkflowTest(unittest.TestCase):
             self.assertFalse(valid)
 
 
+CONFERENCE_RECORD = {
+    "DOI": "10.52202/085713-3345",
+    "title": ["Gated Attention for Large Language Models"],
+    "author": [{"given": "Zihan", "family": "Qiu"}],
+    "container-title": ["Advances in Neural Information Processing Systems 38"],
+    "published": {"date-parts": [[2025]]},
+    "page": "110931-110957",
+    "type": "proceedings-article",
+    "event": {"name": "Advances in Neural Information Processing Systems 38",
+              "acronym": "NeurIPS 2025",
+              "location": "San Diego, California, USA and Mexico City, Mexico"},
+}
+
+
+class ConferenceItemTests(unittest.TestCase):
+    def capture(self):
+        z = m.ZoteroLocal.__new__(m.ZoteroLocal)
+        z.items = lambda: []
+        captured = []
+        z.write_item = lambda entry: (captured.append(entry), "PAPER234")[1]
+        return z, captured
+
+    def test_crossref_type_and_event_are_kept(self):
+        paper = m.paper_from_crossref(CONFERENCE_RECORD)
+        self.assertEqual(paper["type"], "proceedings-article")
+        self.assertEqual(paper["event_acronym"], "NeurIPS 2025")
+        self.assertIn("San Diego", paper["event_place"])
+
+    def test_conference_paper_uses_conference_fields(self):
+        z, captured = self.capture()
+        key, created = z.ensure_item(m.paper_from_crossref(CONFERENCE_RECORD), "COL123")
+        entry = captured[0]
+        self.assertTrue(created)
+        self.assertEqual(key, "PAPER234")
+        self.assertEqual(entry["itemType"], "conferencePaper")
+        self.assertEqual(entry["proceedingsTitle"], "Advances in Neural Information Processing Systems 38")
+        self.assertEqual(entry["conferenceName"], "NeurIPS 2025")
+        self.assertIn("Mexico City", entry["eventPlace"])
+        self.assertNotIn("publicationTitle", entry)
+        self.assertEqual(entry["DOI"], "10.52202/085713-3345")
+        self.assertEqual(entry["pages"], "110931-110957")
+        self.assertEqual(entry["creators"][0]["lastName"], "Qiu")
+        self.assertEqual(entry["collections"], ["COL123"])
+
+    def test_journal_article_behavior_is_unchanged(self):
+        z, captured = self.capture()
+        z.ensure_item(m.paper_from_crossref(m.SAMPLE_RECORD), "COL123")
+        entry = captured[0]
+        self.assertEqual(entry["itemType"], "journalArticle")
+        self.assertEqual(entry["publicationTitle"], "Information Sciences")
+        self.assertNotIn("proceedingsTitle", entry)
+
+    def test_conference_without_event_does_not_fail(self):
+        record = {k: v for k, v in CONFERENCE_RECORD.items() if k != "event"}
+        z, captured = self.capture()
+        z.ensure_item(m.paper_from_crossref(record), "COL123")
+        entry = captured[0]
+        self.assertEqual(entry["itemType"], "conferencePaper")
+        self.assertEqual(entry["conferenceName"], "")
+        self.assertNotIn("eventPlace", entry)
+
+
 if __name__ == "__main__":
     unittest.main()

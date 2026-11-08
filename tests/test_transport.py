@@ -14,8 +14,11 @@ import paper_to_zotero as m
 
 
 class TransportTest(unittest.TestCase):
-    def test_authorization_item_upload_and_repeat_over_http(self):
-        state = {"items": [], "uploaded": b"", "registered": False, "authorizations": 0}
+    @patch('local_auth_cache.save')
+    @patch('local_auth_cache.load', return_value='')
+    def test_authorization_item_upload_and_repeat_over_http(self, _load, _save):
+        state = {"items": [], "uploaded": b"", "registered": False, "authorizations": 0,
+                 'fail_upload_once': True}
 
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, *args):
@@ -38,6 +41,14 @@ class TransportTest(unittest.TestCase):
                     return self.reply(200, [{"data": {"key": "TESTCOL1", "name": "Test", "parentCollection": False}}])
                 if path.endswith("/children"):
                     return self.reply(200, [{"data": x} for x in state["items"] if x.get("parentItem") == "ITEM0001"])
+                if path.endswith('/file/view/url'):
+                    if not state['registered']:
+                        return self.reply(404, {})
+                    body = b'file:///another-computer/zotero/storage/ATTACH01/fixture.pdf'
+                    self.send_response(200)
+                    self.send_header('Content-Length', str(len(body)))
+                    self.end_headers()
+                    return self.wfile.write(body)
                 if path.endswith("/items"):
                     return self.reply(200, [{"data": x} for x in state["items"] if x["itemType"] != "attachment"])
                 return self.reply(404, {})
@@ -46,6 +57,9 @@ class TransportTest(unittest.TestCase):
                 path = urlparse(self.path).path
                 body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
                 if path.startswith("/api/local/uploads/"):
+                    if state['fail_upload_once']:
+                        state['fail_upload_once'] = False
+                        return self.reply(503, {'error': 'simulated interruption'})
                     if hashlib.md5(body).hexdigest() != state["md5"]:
                         return self.reply(400, {})
                     state["uploaded"] = body
@@ -67,6 +81,8 @@ class TransportTest(unittest.TestCase):
                 if path.endswith("/file"):
                     form = parse_qs(body.decode())
                     if "md5" in form:
+                        if state['registered'] and state['md5'] == form['md5'][0]:
+                            return self.reply(200, {'exists': 1})
                         state["md5"] = form["md5"][0]
                         # Zotero returns its own port, different from an SSH forwarding endpoint.
                         return self.reply(200, {"url": "http://127.0.0.1:23119/api/local/uploads/test-upload",
@@ -74,6 +90,7 @@ class TransportTest(unittest.TestCase):
                                                 "contentType": "application/octet-stream"})
                     if form.get("upload") == ["test-upload"] and state["uploaded"]:
                         state["registered"] = True
+                        state['items'][-1]['md5'] = state['md5']
                         return self.reply(204)
                 return self.reply(404, {})
 
@@ -91,7 +108,14 @@ class TransportTest(unittest.TestCase):
             with tempfile.TemporaryDirectory() as temp:
                 pdf = Path(temp) / "fixture.pdf"
                 pdf.write_bytes(payload)
-                self.assertEqual(z.upload_pdf(key, pdf), "ATTACH01")
+                with self.assertRaises(m.PaperError):
+                    z.upload_pdf(key, pdf)
+                self.assertEqual(len(state['items']), 2)
+                repaired = z.ensure_pdf(key, pdf, paper)
+                self.assertEqual(repaired, {'status': 'PDF_ATTACHED', 'attachment_key': 'ATTACH01'})
+                repeated = z.ensure_pdf(key, pdf, paper)
+                self.assertEqual(repeated['status'], 'PDF_ALREADY_PRESENT')
+                self.assertEqual(len(state['items']), 2)
             self.assertEqual(state["uploaded"], payload)
             self.assertTrue(state["registered"])
             self.assertEqual(state["authorizations"], 1)
@@ -112,7 +136,10 @@ class TransportTest(unittest.TestCase):
             self.assertIn("start=100", call.call_args.args[1])
 
     def test_cited_doi_alone_does_not_verify_wrong_paper(self):
-        from reportlab.pdfgen import canvas
+        try:
+            from reportlab.pdfgen import canvas
+        except ImportError:
+            self.skipTest("reportlab is optional for this test")
         with tempfile.TemporaryDirectory() as temp:
             p = Path(temp) / "wrong.pdf"
             c = canvas.Canvas(str(p))

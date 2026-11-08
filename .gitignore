@@ -1,17 +1,60 @@
-.venv/
-node_modules/
+# Python
 __pycache__/
 *.py[cod]
-runs/
-release/
-downloads/
-paper_downloads/
-*.pdf
-*.part
-*.tmp
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.coverage
+
+# Node (only needed for the optional institutional-download backend)
+node_modules/
+
+# Secrets and local authorization cache
 .env
 .env.*
+!.env.example
+.local-auth/
 config.env
 config.toml
 client_data.json
+
+# Runtime / batch data. NEVER commit downloaded papers or personal records.
+downloads/
+outputs/
+runs/
+backups/
+browser-profile/
+vpn-client/
+.runtime-tmp/
+batch/
+*.pdf
+*.part
+*.tmp
+*.xlsx
+*.zip
 *.log
+manifest.json
+report.json
+progress.json
+audit.json
+failures.json
+标题翻译.json
+文献清单.xlsx
+完成情况汇报.md
+课题组.txt
+refs.txt
+refs-doi.txt
+
+# Local notes that may contain private collection names
+_notes/
+
+# Local deployments and release artifacts
+release/
+paper_downloads/
+.local/
+AGENTS.local.md
+*.whl
+*.tar.gz

@@ -1,3 +1,2 @@
-pypdf==6.21.4
-reportlab==5.1.0
-fonttools==4.68.0
+# Runtime dependency: PDF identity verification (first-page title / DOI check).
+pypdf>=4.0,<7

@@ -1,0 +1,5 @@
+# One reference per line: a DOI, or a free-form citation string.
+# Replace with your own list; blank lines and # comments are ignored.
+10.1371/journal.pone.0000308
+10.1038/nature14539
+Vaswani, A., Shazeer, N., Parmar, N., et al. Attention Is All You Need. Advances in Neural Information Processing Systems, 30, 2017.

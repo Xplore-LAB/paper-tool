@@ -1,0 +1,4 @@
+-r requirements.txt
+# Only used to build PDF fixtures in the offline test suite.
+reportlab>=4.0
+build>=1.2,<2
