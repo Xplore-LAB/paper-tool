@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FILES = ['.gitattributes', '.gitignore', 'AGENTS.md', 'LICENSE', 'MANIFEST.in',
          'README.md', 'pyproject.toml', '.github/CONTRIBUTING.md']
 DIRECTORIES = {
-    'src': {'.py', '.mjs'}, 'tests': {'.py'}, 'docs': {'.md'},
+    'src': {'.py', '.mjs'}, 'tests': {'.py'}, 'docs': {'.md', '.svg'},
     'scripts': {'.py', '.cmd', '.mjs'}, 'examples': {'.py', '.txt', '.example'},
 }
 
