@@ -19,7 +19,8 @@ jobs:
           python-version: '3.13'
       - run: python -m pip install build
       - run: python -m build
-      - run: python -m pip download --only-binary=:all: --no-deps pypdf==6.21.4 typing_extensions==4.16.0 --dest dist/dependencies
+      - run: |
+          python -m pip download --only-binary=:all: --no-deps pypdf==6.21.4 typing_extensions==4.16.0 --dest dist/dependencies
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: offline-bundle-inputs

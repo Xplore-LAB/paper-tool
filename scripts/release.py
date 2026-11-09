@@ -6,7 +6,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 FILES = ['.gitattributes', '.gitignore', 'AGENTS.md', 'LICENSE', 'MANIFEST.in',
-         'README.md', 'pyproject.toml', '.github/CONTRIBUTING.md']
+         'README.md', 'pyproject.toml', '.github/CONTRIBUTING.md', '.github/workflows/ci.yml']
 DIRECTORIES = {
     'src': {'.py', '.mjs', '.html', '.css', '.js'}, 'tests': {'.py'}, 'docs': {'.md', '.svg'},
     'scripts': {'.py', '.cmd', '.mjs'}, 'examples': {'.py', '.txt', '.example'},

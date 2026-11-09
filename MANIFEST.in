@@ -1,5 +1,6 @@
 include LICENSE AGENTS.md README.md pyproject.toml .gitattributes .gitignore
 include .github/CONTRIBUTING.md
+include .github/workflows/ci.yml
 recursive-include src *.py *.mjs *.html *.css *.js
 recursive-include tests *.py
 recursive-include docs *.md *.svg
