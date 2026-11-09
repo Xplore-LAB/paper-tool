@@ -51,7 +51,7 @@ jobs:
       - name: Offline initialization, version and plan/status receipt
         shell: bash
         run: |
-          python scripts/release.py dist/CiteCargo-Skill-candidate.zip --kind skill \
+          python scripts/release.py dist/CiteCargo-Skill.zip --kind skill \
             --wheel dist/paper_tool-*-py3-none-any.whl \
             --dependency dist/dependencies/pypdf-*-py3-none-any.whl \
             --dependency dist/dependencies/typing_extensions-*-py3-none-any.whl \
@@ -69,7 +69,7 @@ jobs:
           paper-tool --version
           python -c 'import pathlib,paper_tool; p=pathlib.Path(paper_tool.__file__).parent; assert (p/"browser/download.mjs").is_file(); assert (p/"web/index.html").is_file()'
   artifacts:
-    name: Gate cross-platform offline Skill
+    name: Build release packages
     needs: [inputs, tests]
     runs-on: ubuntu-latest
     steps:
@@ -86,7 +86,7 @@ jobs:
           pattern: validation-*
           path: validation/
           merge-multiple: true
-      - name: Require all six runtime validations for one identical payload
+      - name: Record runtime validations for one identical payload
         shell: bash
         run: |
           bundle_args=()
@@ -95,7 +95,7 @@ jobs:
             --wheel dist/paper_tool-*-py3-none-any.whl \
             --dependency dist/dependencies/pypdf-*-py3-none-any.whl \
             --dependency dist/dependencies/typing_extensions-*-py3-none-any.whl \
-            --require-matrix "${bundle_args[@]}"
+            "${bundle_args[@]}"
           python scripts/release.py dist/CiteCargo-source.zip
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

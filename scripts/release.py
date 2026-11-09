@@ -104,7 +104,7 @@ def wheel_coverage(wheels):
 
 def build_skill(destination,*,app_wheel,dependency_wheels,verify_hashes=True,
                 validation_receipts=(),require_matrix=False,receipt_out=None):
-    """Build one wheel-only offline Skill; untested matrices remain candidates."""
+    """Build one wheel-only offline Skill and record its actual validation scope."""
     import hashlib,json,os,platform,subprocess,sys,tempfile
     if verify_hashes is not True: raise ValueError('Bundle integrity verification cannot be disabled')
     version=_version()
@@ -134,7 +134,7 @@ def build_skill(destination,*,app_wheel,dependency_wheels,verify_hashes=True,
         entries.append(item)
     payload_hash=hashlib.sha256(json.dumps(entries,sort_keys=True,separators=(',',':')).encode()).hexdigest()
     manifest={'schema_version':'2.0','app_version':version,'integrity_validated':True,'payload_sha256':payload_hash,
-              'files':entries,'validation':{'wheel_coverage':coverage,'runtime_tested':[],'release_ready':False}}
+              'files':entries,'validation':{'wheel_coverage':coverage,'runtime_tested':[],'matrix_complete':False}}
     receipts=[]
     for receipt in validation_receipts:
         data=json.loads(Path(receipt).read_text()) if not isinstance(receipt,dict) else receipt
@@ -168,8 +168,8 @@ def build_skill(destination,*,app_wheel,dependency_wheels,verify_hashes=True,
         manifest['validation']['runtime_tested']=receipts
         passed={(r['platform'],r['python']) for r in receipts}
         required={(r['platform'],r['python']) for r in coverage}
-        manifest['validation']['release_ready']=required.issubset(passed)
-        if require_matrix and not manifest['validation']['release_ready']:
+        manifest['validation']['matrix_complete']=required.issubset(passed)
+        if require_matrix and not manifest['validation']['matrix_complete']:
             raise ValueError('Required Windows/Linux/macOS Python 3.10/3.13 runtime matrix is incomplete')
         destination=Path(destination)
         destination.parent.mkdir(parents=True,exist_ok=True)

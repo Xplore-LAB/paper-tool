@@ -4,7 +4,7 @@ CiteCargo 技能让 AI 代为安装工具、执行下载、核验结果并交付
 
 ## V2 离线包
 
-本分支技能包包含 `vendor/wheels/`、启动脚本与 `bundle-manifest.json`。wheel 是唯一内置引擎，避免源码与安装包双份维护。包初始化时不修改自身，在用户缓存目录建立独立运行环境，使用 `--no-index`、锁定哈希和 `--no-deps`，再校验依赖与 CLI 版本。
+技能包包含 `vendor/wheels/`、启动脚本与 `bundle-manifest.json`。wheel 是唯一内置引擎，避免源码与安装包双份维护。包初始化时不修改自身，在用户缓存目录建立独立运行环境，使用 `--no-index`、锁定哈希和 `--no-deps`，再校验依赖与 CLI 版本。
 
 ```bash
 python "<技能目录>/scripts/bootstrap.py" --diagnose
@@ -13,7 +13,7 @@ python "<技能目录>/scripts/citecargo.py" --version
 
 需要完整 Python 3.10+，包括 venv 和 ensurepip；缺少时请用户补齐，不自动联网安装。`CITECARGO_RUNTIME_CACHE` 可指定用户可写的缓存根目录，但不能放在技能包内部。
 
-源码里的指令文件夹尚无 `bundle-manifest.json` 与 wheel，不能当作完整离线安装包。正式跨平台包需 Windows、Linux、macOS × Python 3.10、3.13 的同一载荷验证齐全；候选包清单会标记实际验收范围。
+源码里的指令文件夹尚无 `bundle-manifest.json` 与 wheel，不能当作完整离线安装包。包清单记录同一载荷在各平台的实际验证范围，不将尚未测试的平台标为通过。
 
 ## Codex
 

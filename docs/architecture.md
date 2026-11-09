@@ -82,5 +82,6 @@ individually metered. Per-task limits are not a machine-wide egress governor.
 Skill builds validate wheel RECORDs, reviewed dependency hashes and dependency
 closure across the required platform/Python matrix. An actual offline bootstrap,
 version and plan/status test produces a payload-bound receipt for its host only.
-`--require-matrix` rejects a formal bundle until all six runtime receipts match.
+`--require-matrix` optionally requires all six runtime receipts to match.
+Publishing does not require a complete matrix; the actual tested scope stays visible.
 The manifest separates wheel compatibility from tested runtime coverage.

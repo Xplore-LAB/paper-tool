@@ -10,11 +10,11 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 [![协议](https://img.shields.io/badge/%E5%8D%8F%E8%AE%AE-MIT-green)](LICENSE)
 
-[下载操作页版](https://github.com/Xplore-LAB/paper-tool/releases/download/v1.2.0/CiteCargo-1.2.0-Windows.zip) · [下载 AI 技能](https://github.com/Xplore-LAB/paper-tool/releases/download/v1.2.0/CiteCargo-1.2.0-Skill.zip) · [英文版](docs/README.en.md) · [反馈](https://github.com/Xplore-LAB/paper-tool/issues)
+[下载操作页版](https://github.com/Xplore-LAB/paper-tool/releases/download/v2.0.0/CiteCargo-2.0.0-Windows.zip) · [下载 AI 技能](https://github.com/Xplore-LAB/paper-tool/releases/download/v2.0.0/CiteCargo-2.0.0-Skill.zip) · [英文版](docs/README.en.md) · [反馈](https://github.com/Xplore-LAB/paper-tool/issues)
 
 </div>
 
-> 当前源码为 **V2 候选版 2.0.0rc1**：新增离线技能与受约束任务接口；上方下载链接仍是公开稳定版 1.2.0。V2 验证与构建方法见[使用手册](docs/usage.md#v2-任务接口)。
+> **2.0.0 已更新**：离线技能包内置下载引擎，支持任务计划、安全调度与结构化报告。[查看使用方法](docs/usage.md#v2-任务接口)。
 
 给它一个 DOI、一条完整参考文献，或一份论文清单。它会查找可获取的正文、核验 PDF、保留下载进度。**只要文件就下载到本地，想建文献库再选择 Zotero 归档。**
 

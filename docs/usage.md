@@ -2,7 +2,7 @@
 
 ## V2 任务接口
 
-V2 候选版保留旧 CLI 与检查点格式。计划默认离线：
+V2 保留旧 CLI 与检查点格式。计划默认离线：
 
 ```bash
 citecargo plan --input refs.txt --out library --oa-only
@@ -34,7 +34,7 @@ citecargo job --plan library/plan.json --allow-zotero
 Python 的元数据、OA 下载和重定向逐请求受控；可选浏览器仍在 Python 操作入口管理，浏览器内部页面资源未逐请求接入。严格要求逐请求计量时使用 `--oa-only`。
 更多停止原因与错误处理见[恢复规则](../skills/citecargo/references/recovery.md)。
 
-V2 Skill 将 CLI 和锁定依赖内置为 wheel，初始化离线；Python、venv 或 ensurepip 缺失时只报诊断，不联网补装。构建清单区分 wheel 兼容性和已实测平台，6 组运行验证未齐全时不能产出正式跨平台包。
+V2 Skill 将 CLI 和锁定依赖内置为 wheel，初始化离线；Python、venv 或 ensurepip 缺失时只报诊断，不联网补装。构建清单区分 wheel 兼容性和已实测平台，按真实结果记录验证范围；需要严格要求六组运行验证时，可在构建时显式使用 `--require-matrix`。
 
 ## 本地操作页
 

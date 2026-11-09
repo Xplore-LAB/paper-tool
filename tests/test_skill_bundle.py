@@ -75,7 +75,7 @@ class SkillBundleTests(unittest.TestCase):
         self.assertEqual(sum(n.endswith('.whl') and 'paper_tool-' in n for n in names),1)
         self.assertFalse(any('/paper_tool/' in n or '/.venv/' in n or n.endswith(('.pdf','.dpapi')) for n in names))
         checked=self.bootstrap.verify_bundle(self.skill)
-        self.assertFalse(checked['manifest']['validation']['release_ready'])
+        self.assertFalse(checked['manifest']['validation']['matrix_complete'])
         self.assertEqual(len(checked['manifest']['validation']['wheel_coverage']),6)
 
     def test_launcher_is_offline_independent_of_cwd_and_does_not_modify_package(self):

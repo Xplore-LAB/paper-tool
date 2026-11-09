@@ -206,7 +206,7 @@ def main():
         if args.diagnose:
             result={'ok':True,**info,'app_version':bundle['manifest']['app_version'],
                     'runtime_ready':(_runtime(bundle)/'runtime.json').is_file(),'network_required':False,
-                    'release_ready':bundle['manifest']['validation']['release_ready']}
+                    'matrix_complete':bundle['manifest']['validation']['matrix_complete']}
         else: result={'ok':True,**info,'command':get_cli_command(),'network_required':False}
         print(json.dumps(result,ensure_ascii=False))
         return 0

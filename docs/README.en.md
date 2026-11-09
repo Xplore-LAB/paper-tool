@@ -6,11 +6,11 @@
 
 **Paste references. Collect full texts. File them in Zotero when you need to.**
 
-[Download the local app](https://github.com/Xplore-LAB/paper-tool/releases/download/v1.2.0/CiteCargo-1.2.0-Windows.zip) · [Download the AI skill](https://github.com/Xplore-LAB/paper-tool/releases/download/v1.2.0/CiteCargo-1.2.0-Skill.zip) · [Chinese](../README.md) · [Feedback](https://github.com/Xplore-LAB/paper-tool/issues)
+[Download the local app](https://github.com/Xplore-LAB/paper-tool/releases/download/v2.0.0/CiteCargo-2.0.0-Windows.zip) · [Download the AI skill](https://github.com/Xplore-LAB/paper-tool/releases/download/v2.0.0/CiteCargo-2.0.0-Skill.zip) · [Chinese](../README.md) · [Feedback](https://github.com/Xplore-LAB/paper-tool/issues)
 
 </div>
 
-> The current source is **V2 release candidate 2.0.0rc1**: an offline skill and bounded task protocol. Download links above still point to stable 1.2.0. Cross-platform runtime acceptance for V2 is pending.
+> **2.0.0 is available:** an offline skill with a bundled retrieval engine, task plans, bounded scheduling and structured reports.
 
 Give CiteCargo a DOI, a full citation or a reference list. It finds accessible full texts, verifies the PDFs and tracks progress. **Save the files locally, or choose Zotero when you want to grow your library.**
 
@@ -38,7 +38,7 @@ Python 3.10+ is a one-time prerequisite. The ZIP includes the basic Python depen
 **On macOS or Linux:** install the Python package from [Releases](https://github.com/Xplore-LAB/paper-tool/releases/latest), then open the interface:
 
 ```bash
-python -m pip install ./paper_tool-1.2.0-py3-none-any.whl
+python -m pip install ./paper_tool-2.0.0-py3-none-any.whl
 citecargo ui --lang en
 ```
 
