@@ -1,5 +1,41 @@
 # CiteCargo 使用手册
 
+## V2 任务接口
+
+V2 候选版保留旧 CLI 与检查点格式。计划默认离线：
+
+```bash
+citecargo plan --input refs.txt --out library --oa-only
+citecargo job --plan library/plan.json
+citecargo status --out library --json
+```
+
+`plan` 只读取输入并持久化计划，不下载、不写 Zotero；增加 `--metadata-preflight` 才查询公开题录。
+`job` 重新校验计划与输入摘要，先试运行至多 5 篇，通过后每批至多 10 篇。首批异常时暂停剩余任务，记录 `PILOT_REVIEW`。
+`status` 离线只读，结果、错误和恢复建议遵循[机器接口定义](../skills/citecargo/references/agent-protocol.schema.json)。
+
+输入、输出目录、安全策略和归档范围绑定在计划里。输入变更后旧计划不能执行；新计划不能覆盖已绑定任务。哈希用于完整性校验，并非身份签名。
+`manifest.json` 继续保存逐篇记录，新增 `job.json` 保存任务状态；单写入锁防止同一批次并发写坏。中断后沿用同一计划，复用已核验文件。
+
+归档必须在计划中给出已有分类，执行时明确认可写入范围：
+
+```bash
+citecargo plan --input refs.txt --out library --zotero --collection "已有分类完整路径"
+citecargo job --plan library/plan.json --allow-zotero
+```
+
+仅题录在计划时增加 `--metadata-only`。默认计划仅开放全文；计划时使用 `--institutional` 才启用已有授权浏览器路径。
+本机接口与远程请求分开处理，下载仍无需 Zotero。UI 和浏览器后端本轮保持原有交互。
+
+远程请求由任务专属策略调度：每来源串行、请求间隔至少 30 秒；每篇最多 2 次自动重试；运行预算 7200 秒，PDF 传输预算 2 GiB。
+旧 `--interval 0` 仍能解析，但不能关闭远程来源的最小间隔。429 遵守 Retry-After，401/403 停用该任务中的来源；已完成文件保留。
+预算、暂停来源和事件随任务持久化，恢复时沿用。策略作用于单个任务，不是跨进程、跨机器的统一出口计数器。
+
+Python 的元数据、OA 下载和重定向逐请求受控；可选浏览器仍在 Python 操作入口管理，浏览器内部页面资源未逐请求接入。严格要求逐请求计量时使用 `--oa-only`。
+更多停止原因与错误处理见[恢复规则](../skills/citecargo/references/recovery.md)。
+
+V2 Skill 将 CLI 和锁定依赖内置为 wheel，初始化离线；Python、venv 或 ensurepip 缺失时只报诊断，不联网补装。构建清单区分 wheel 兼容性和已实测平台，6 组运行验证未齐全时不能产出正式跨平台包。
+
 ## 本地操作页
 
 Windows 用户下载发布页的操作页压缩包，解压整个文件夹后双击 `Start-CiteCargo.cmd`。
@@ -112,7 +148,7 @@ Windows 记住的授权以 DPAPI 加密存入当前用户 LocalAppData，不放�
 
 稳定接口是 CLI；内部 Python 函数不作为公共 API。
 
-- 子命令：`ui`、`fetch`、`batch`、`preview`、`collections`、`browser`、`doctor`、`progress`、`audit`、`failures`。
+- 子命令：`plan`、`job`、`status`、`ui`、`fetch`、`batch`、`preview`、`collections`、`browser`、`doctor`、`progress`、`audit`、`failures`。
 - 退出码：`0` 表示所选任务完成；`2` 表示参数错误、待补或需复核。
 - `fetch` 的 `report.json` 包含 `results` 列表；`batch` 的 `manifest.json` 是逐篇列表。
 - 结果包含 `status`，按阶段提供 `paper`、`pdf`、`sha256`、`warnings`、`download_state`、`archive_state`；空值或缺字段不表示成功。

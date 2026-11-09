@@ -10,6 +10,8 @@
 
 </div>
 
+> This branch contains the **V2 release candidate**: an offline skill and bounded task protocol. Download links above still point to stable 1.2.0. Cross-platform runtime acceptance for V2 is pending.
+
 Give CiteCargo a DOI, a full citation or a reference list. It finds accessible full texts, verifies the PDFs and tracks progress. **Save the files locally, or choose Zotero when you want to grow your library.**
 
 ## Choose your way in

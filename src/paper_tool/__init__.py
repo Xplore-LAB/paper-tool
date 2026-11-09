@@ -1,3 +1,3 @@
 """CiteCargo: reference lists to verified PDFs."""
 
-__version__ = "1.2.0"
+__version__ = "2.0.0rc1"

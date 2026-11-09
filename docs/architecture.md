@@ -4,6 +4,24 @@ Researchers enter through the AI skill or local browser interface. Both use the
 `citecargo` CLI/engine, with `paper-tool` compatibility; implementation modules are
 internal. See usage.md for the command/exit-code contract and operational steps.
 
+V2 adds an offline wheel-only Skill and a versioned `plan -> job -> status`
+protocol. Plans bind the original input digest, destination, permission scope
+and policy. The job first runs a pilot, then bounded chunks, under one task guard.
+Metadata preflight is explicit; its source pauses and budget carry into execution.
+The existing UI still calls the batch engine and was not redesigned for V2.
+
+```mermaid
+flowchart LR
+    S[Offline Skill bundle] --> V[Verify hashes and isolated runtime]
+    V --> P[Offline plan or explicit metadata preflight]
+    P --> C[Validate input digest and planned permissions]
+    C --> G[Task SafetyGuard and exclusive writer]
+    G --> T[Pilot and remaining chunks]
+    T --> E[Existing retrieval and Zotero engine]
+    E --> R[Verified files, manifest and job state]
+    R --> Q[Read-only JSON status and next actions]
+```
+
 ```mermaid
 flowchart TD
     S[AI skill] --> A[DOI or citation list]
@@ -31,6 +49,9 @@ flowchart TD
 - `src/paper_tool/batch.py`: per-paper recovery and atomic checkpoint updates.
 - `src/paper_tool/browser/download.mjs`: optional CDP/Playwright institutional route.
 - `src/paper_tool/reports.py`: optional local spreadsheet and completion-report export.
+- `src/paper_tool/agent.py`: plan validation, bounded execution and unified status.
+- `src/paper_tool/safety.py`: source scheduling, budgets, cancellation and writer locks.
+- `src/paper_tool/errors.py`: stable errors and string-compatible PDF diagnostics.
 
 Download and archive state are separate. A checksum match permits a download
 skip; an archival run rechecks the current collection and attachment state.
@@ -52,3 +73,14 @@ inside the configured folder. Retry keeps the original checkpoint and only runs
 unfinished references. Current-session history is in memory; PDFs and engine
 checkpoints remain on disk after shutdown, and re-entering a list reuses verified
 files. The UI server is a user-launched foreground process, not an installed daemon.
+
+Remote Python requests include manual redirect scheduling. Loopback Zotero traffic
+has separate treatment and write permission checks. The unchanged browser backend
+is controlled at its Python operation boundary; browser page subrequests are not
+individually metered. Per-task limits are not a machine-wide egress governor.
+
+Skill builds validate wheel RECORDs, reviewed dependency hashes and dependency
+closure across the required platform/Python matrix. An actual offline bootstrap,
+version and plan/status test produces a payload-bound receipt for its host only.
+`--require-matrix` rejects a formal bundle until all six runtime receipts match.
+The manifest separates wheel compatibility from tested runtime coverage.

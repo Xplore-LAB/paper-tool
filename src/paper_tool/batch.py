@@ -13,6 +13,10 @@ bypasses a verification challenge. Re-running the same command only continues
 the rows that are not confirmed yet.
 """
 import json
+import math
+import os
+import tempfile
+import uuid
 import re
 import subprocess
 import sys
@@ -23,6 +27,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from . import core
+from .errors import ErrorCode, PaperError, error_fields, safe_text
+from .safety import SafetyGuard, SafetyPolicy, current_guard, use_guard, writer_lock
 
 # Identical to paper_tool.GOOD_STATUS: the attachment is confirmed. Kept as a
 # separate copy so this module stays importable on its own; a test asserts that
@@ -81,13 +87,40 @@ def save_rows(out, rows):
     temp.replace(target)
 
 
+def canonical_ref(reference):
+    doi=core.doi_from(str(reference))
+    return 'doi:'+doi if doi else 'ref:'+' '.join(str(reference).strip().lower().split())
+
+
+def read_job(out):
+    path=Path(out)/'job.json'
+    if not path.exists(): return {}
+    try:
+        data=json.loads(path.read_text(encoding='utf-8'))
+        if not isinstance(data,dict) or data.get('schema_version')!='2.0': raise ValueError()
+        return data
+    except (ValueError,OSError) as error:
+        raise PaperError('Job metadata is unreadable; retained without overwriting',code=ErrorCode.INVALID_PLAN) from error
+
+
+def write_job(out,data):
+    path=Path(out)/'job.json'
+    path.parent.mkdir(parents=True,exist_ok=True)
+    fd,name=tempfile.mkstemp(prefix='.job-',suffix='.tmp',dir=path.parent)
+    try:
+        with os.fdopen(fd,'w',encoding='utf-8') as handle: json.dump(data,handle,ensure_ascii=False,indent=2)
+        os.replace(name,path)
+    finally:
+        if Path(name).exists(): Path(name).unlink()
+
+
 def merge_rows(rows, refs):
     """One row per new input line; rows outside the list are kept as history."""
-    seen = {str(row.get('input') or '').strip().lower() for row in rows if row.get('input')}
+    seen = {canonical_ref(row['input']) for row in rows if row.get('input')}
     number = max([int(row.get('number') or 0) for row in rows] or [0])
     for ref in refs:
-        key = str(ref).strip().lower()
-        if not key or key in seen:
+        key = canonical_ref(ref)
+        if not str(ref).strip() or key in seen:
             continue
         seen.add(key)
         number += 1
@@ -209,13 +242,16 @@ def _process(row, ref, folders, options, runner):
             update = {'doi': paper['doi'], 'title': paper['title'], 'paper': paper,
                       'pdf': str(candidate), 'sha256': core.pdf_sha256(candidate),
                       'source': 'local_file', 'verification': why, 'status': 'PDF_SAVED'}
+            update['pdf_source']=row.get('pdf_source') or {'source':'existing_local','version':'unknown','license':None}
             if options['zotero']:
                 try:
                     update.update(attach_pdf(paper, candidate, options['collection'],
                                              options['zotero_base'],
                                              options.get('zotero_client')))
                 except (core.PaperError, OSError, ValueError) as error:
+                    if isinstance(error,PaperError) and error.code==ErrorCode.BATCH_PAUSED: raise
                     update.update(zotero='WRITE_PENDING', warnings=[str(error)])
+                    update.update(error_fields(error,ErrorCode.ZOTERO_WRITE_FAILED))
                     update['archive_state'] = {'status': 'PENDING'}
             update['warnings'] = rejected + _warnings(update)
             return update, used_network
@@ -226,7 +262,7 @@ def _process(row, ref, folders, options, runner):
                            collection=options['collection'],
                            metadata_only=options.get('metadata_only', False),
                            zotero_client=options.get('zotero_client'),
-                           doi_index=options.get('doi_index'))
+                           doi_index=options.get('doi_index'), doi_cache=options.get('doi_cache'))
     result = runner(ref, args)
     paper = result.get('paper') or {}
     update = {'doi': paper.get('doi') or row.get('doi', ''), 'paper': paper,
@@ -242,6 +278,10 @@ def _process(row, ref, folders, options, runner):
     if update['pdf']:
         update['sha256'] = (row.get('sha256') if options.get('metadata_only') else
                             result.get('sha256') or core.pdf_sha256(Path(update['pdf'])))
+    for field in ('error_code','error_detail','next_actions','sources_attempted'):
+        update[field]=result.get(field)
+    location=result.get('location') or {}
+    update['pdf_source']={key:location.get(key) for key in ('source','version','license')} if location else row.get('pdf_source')
     if result.get('archive_state'):
         update['archive_state'] = result['archive_state']
     return update, True
@@ -276,7 +316,7 @@ def format_summary(summary):
     return '\n'.join(lines)
 
 
-def run_batch(refs, out, *, zotero=False, collection=None, proxy='direct',
+def _run_batch(refs, out, *, zotero=False, collection=None, proxy='direct',
               cdp='http://127.0.0.1:18806', interval=30.0, oa_only=False,
               pdf_dir=None, zotero_base=None, force=False, dry_run=False,
               runner=None, sleeper=None, stream=None, metadata_only=False):
@@ -299,15 +339,15 @@ def run_batch(refs, out, *, zotero=False, collection=None, proxy='direct',
     refs = [str(ref).strip() for ref in refs if str(ref).strip()]
     unique = {}
     for ref in refs:
-        unique.setdefault(ref.lower(), ref)
+        unique.setdefault(canonical_ref(ref), ref)
     refs = list(unique.values())
     if not refs:
         raise ValueError('No references to process')
 
     rows = load_rows(out)
     merge_rows(rows, refs)
-    index = {str(row.get('input') or '').strip().lower(): row for row in rows}
-    tracked = [index[ref.lower()] for ref in refs]
+    index = {canonical_ref(row['input']): row for row in rows}
+    tracked = [index[canonical_ref(ref)] for ref in refs]
 
     client, doi_index = None, None
     if zotero and not dry_run:
@@ -324,7 +364,7 @@ def run_batch(refs, out, *, zotero=False, collection=None, proxy='direct',
     options = {'zotero': zotero, 'collection': collection, 'proxy': proxy, 'cdp': cdp,
                'oa_only': oa_only, 'zotero_base': zotero_base,
                'metadata_only': metadata_only, 'zotero_client': client,
-               'doi_index': doi_index}
+               'doi_index': doi_index, 'doi_cache': {}}
 
     summary = {'batch': str(out), 'checkpoint': str(out / MANIFEST), 'total': len(tracked),
                'dry_run': dry_run, 'skipped': 0, 'attached': 0, 'already': 0, 'saved': 0,
@@ -335,6 +375,7 @@ def run_batch(refs, out, *, zotero=False, collection=None, proxy='direct',
         save_rows(out, rows)
 
     for position, row in enumerate(tracked):
+        current_guard().check_batch_budget()
         ref = str(row.get('input'))
         if row_done(row, zotero=zotero, metadata_only=metadata_only) and not force:
             summary['skipped'] += 1
@@ -352,14 +393,18 @@ def run_batch(refs, out, *, zotero=False, collection=None, proxy='direct',
         started = time.monotonic()
         row['attempts'] = int(row.get('attempts') or 0) + 1
         try:
-            update, network = _process(row, ref, folders, options, runner)
+            with current_guard().paper(canonical_ref(ref)):
+                update, network = _process(row, ref, folders, options, runner)
         except (core.PaperError, OSError, ValueError, subprocess.TimeoutExpired) as error:
+            if isinstance(error,PaperError) and error.code==ErrorCode.BATCH_PAUSED: raise
             update, network = ({'status': 'NEEDS_REVIEW', 'error': type(error).__name__,
-                               'warnings': [str(error)]}, False)
+                               'warnings': [safe_text(error)], **error_fields(error)}, False)
             if zotero:
                 update['archive_state'] = {'status': 'PENDING'}
         row.update(update)
-        if row.get('pdf') and core.checkpoint_pdf_valid(row):
+        if metadata_only:
+            row.setdefault('download_state',{'status':'PENDING'})
+        elif row.get('pdf') and core.checkpoint_pdf_valid(row):
             row['download_state'] = {'status': 'VERIFIED', 'pdf': row['pdf'],
                                      'sha256': row.get('sha256') or core.pdf_sha256(Path(row['pdf']))}
         else:
@@ -367,6 +412,7 @@ def run_batch(refs, out, *, zotero=False, collection=None, proxy='direct',
         row['seconds'] = round(time.monotonic() - started, 1)
         row['updated'] = _stamp()
         save_rows(out, rows)
+        current_guard().emit('paper_checkpoint',number=row.get('number'))
         _emit({'number': row.get('number'), 'input': ref, 'status': row.get('status'),
                'doi': row.get('doi', ''), 'pdf': row.get('pdf', ''),
                'zotero_key': row.get('zotero_key', ''),
@@ -380,3 +426,66 @@ def run_batch(refs, out, *, zotero=False, collection=None, proxy='direct',
                    review=counts['NEEDS_REVIEW'], metadata=counts['METADATA_ONLY'])
     summary['ok'] = all(_succeeded(row, zotero, metadata_only) for row in tracked)
     return summary
+
+
+def run_batch(refs,out,*,zotero=False,collection=None,proxy='direct',
+              cdp='http://127.0.0.1:18806',interval=30.0,oa_only=False,pdf_dir=None,
+              zotero_base=None,force=False,dry_run=False,runner=None,sleeper=None,stream=None,
+              metadata_only=False,safety_policy=None,stop_token=None,event_sink=None):
+    if not isinstance(interval,(int,float)) or not math.isfinite(interval) or interval<0:
+        raise ValueError('interval must be a finite nonnegative number')
+    refs=list(refs)
+    out=Path(out).expanduser().resolve()
+    with writer_lock(out,enabled=not dry_run):
+        previous=read_job(out) if not dry_run else {}
+        guard=current_guard()
+        if guard is None or getattr(guard,'command_guard',False):
+            guard=SafetyGuard(safety_policy or SafetyPolicy(),stop_token=stop_token,
+                    event_sink=event_sink,allow_zotero=zotero,state=previous.get('safety'))
+        settings={'zotero':zotero,'collection':collection,'oa_only':oa_only,
+                  'metadata_only':metadata_only,'pdf_dir':str(Path(pdf_dir).resolve()) if pdf_dir else str(out/'PDF')}
+        if previous.get('plan_hash') and previous.get('settings') not in (None,settings):
+            raise PaperError('Task settings differ from its bound plan',code=ErrorCode.INVALID_PLAN)
+        with use_guard(guard):
+            job={**previous,'schema_version':'2.0','job_id':previous.get('job_id') or uuid.uuid4().hex,
+                 'status':'RUNNING','settings':settings}
+            if not dry_run: write_job(out,job)
+            old_sink=guard.state_sink
+            def persist(event):
+                if old_sink: old_sink(event)
+                if not dry_run:
+                    job['safety']=guard.snapshot()
+                    write_job(out,job)
+            guard.state_sink=persist
+            try:
+                if not dry_run: guard.check_batch_budget()
+                summary=_run_batch(refs,out,zotero=zotero,collection=collection,proxy=proxy,cdp=cdp,
+                    interval=interval,oa_only=oa_only,pdf_dir=pdf_dir,zotero_base=zotero_base,
+                    force=force,dry_run=dry_run,runner=runner,sleeper=sleeper,stream=stream,
+                    metadata_only=metadata_only)
+            except (PaperError,KeyboardInterrupt,OSError,ValueError) as error:
+                if isinstance(error,KeyboardInterrupt):
+                    guard.stop_reason='USER_CANCELLED'
+                elif not isinstance(error,PaperError) or error.code!=ErrorCode.BATCH_PAUSED:
+                    detail=error if isinstance(error,PaperError) else PaperError(str(error))
+                    if not dry_run:
+                        job.update(status='ERROR',stop_reason=detail.code.value,error=detail.as_dict(),safety=guard.snapshot())
+                        write_job(out,job)
+                    guard.state_sink=old_sink
+                    raise
+                rows=load_rows(out)
+                merge_rows(rows,refs)
+                if not dry_run: save_rows(out,rows)
+                counts=Counter(row.get('status') for row in rows)
+                summary={'ok':False,'batch':str(out),'checkpoint':str(out/MANIFEST),'total':len(rows),
+                    'skipped':0,'attached':counts['PDF_ATTACHED'],'already':counts['PDF_ALREADY_PRESENT'],
+                    'saved':counts['PDF_SAVED'],'pending':counts['PDF_PENDING'],'review':counts['NEEDS_REVIEW'],
+                    'metadata':counts['METADATA_ONLY'],'paused':True,'error_code':ErrorCode.BATCH_PAUSED.value}
+            if not dry_run:
+                state='PAUSED' if guard.stop_reason else ('COMPLETED' if summary['ok'] else 'PARTIAL')
+                if job.get('managed') and state=='COMPLETED': state='RUNNING'
+                job.update(status=state,stop_reason=guard.stop_reason,safety=guard.snapshot(),updated_at=_stamp())
+                write_job(out,job)
+                summary.update(job_id=job['job_id'],status=state,stop_reason=guard.stop_reason)
+            guard.state_sink=old_sink
+            return summary

@@ -16,6 +16,8 @@ from urllib.request import ProxyHandler, build_opener
 from . import batch as batch_runner
 from . import core
 from . import __version__
+from .errors import ErrorCode, PaperError, error_fields, safe_text
+from .safety import current_guard, task_entry, paper_entry
 ROOT = Path(__file__).resolve().parent
 DEFAULT_OUT = Path(os.environ.get('PAPER_TOOL_OUT') or Path.cwd() / 'downloads').expanduser()
 DEFAULT_ZOTERO = os.environ.get('PAPER_TOOL_ZOTERO_BASE') or core.BASE
@@ -362,7 +364,11 @@ def format_progress(snapshot):
     return '\n'.join(lines)
 
 
+@paper_entry
 def run_reference(reference, args):
+    guard=current_guard()
+    error_start=len(guard.errors)
+    event_start=len(guard.events)
     metadata_only = bool(getattr(args, 'metadata_only', False))
     client = getattr(args, 'zotero_client', None)
     doi_index = getattr(args, 'doi_index', None)
@@ -376,6 +382,10 @@ def run_reference(reference, args):
     if paper is None:
         record, confidence = core.crossref_metadata(reference)
         paper = core.paper_from_crossref(record)
+    doi_cache=getattr(args,'doi_cache',None)
+    previous=(doi_cache or {}).get(paper['doi'])
+    if previous and (core.checkpoint_pdf_valid(previous) or (metadata_only and previous.get('status')=='METADATA_ONLY')):
+        return {**previous,'duplicate_doi':True}
     out = Path(args.out).expanduser().resolve()
     filename = re.sub(r'[^A-Za-z0-9_.-]','_',paper['doi']).strip('._')+'.pdf'
     dest = out / filename
@@ -407,6 +417,7 @@ def run_reference(reference, args):
             try:
                 record, _ = core.crossref_metadata(paper['doi'])
             except core.PaperError as error:
+                if error.code==ErrorCode.BATCH_PAUSED: raise
                 record = {}
                 result['warnings'].append('Publisher metadata unavailable: '+str(error))
         pii = next((m.group(1) for link in record.get('link',[]) if (m:=re.search(r'/PII:([A-Z0-9]+)',link.get('URL','')))),None)
@@ -418,11 +429,16 @@ def run_reference(reference, args):
                 path=target
             else:
                 try:
-                    process = subprocess.run(['node',str(ROOT/'browser'/'download.mjs'),'--pii',pii,'--out',str(target),'--cdp',args.cdp,'--proxy',args.proxy],capture_output=True,text=True,timeout=180)
+                    with guard.before_request('https://www.sciencedirect.com/science/article/pii/'+pii,'institutional_browser'):
+                        remaining=guard.policy.max_runtime_seconds-guard.previous_elapsed-(guard.clock()-guard.started)
+                        process = subprocess.run(['node',str(ROOT/'browser'/'download.mjs'),'--pii',pii,'--out',str(target),'--cdp',args.cdp,'--proxy',args.proxy],capture_output=True,text=True,timeout=min(180,max(.1,remaining)))
                 except (OSError, subprocess.TimeoutExpired) as error:
                     process = SimpleNamespace(returncode=1, stderr='')
                     result['warnings'].append('Browser download did not complete: '+str(error))
                 if process.returncode == 0 and target.exists():
+                    guard.consume_bytes(target.stat().st_size)
+                    if target.stat().st_size>core.MAX_PDF:
+                        raise PaperError('Browser PDF exceeds size limit',code=ErrorCode.PDF_INVALID)
                     valid, why = core.verify_pdf(target,paper)
                     if valid:
                         path=target
@@ -460,20 +476,55 @@ def run_reference(reference, args):
                         'zotero_key': key,
                     }
         except (core.PaperError, OSError, ValueError) as error:
+            if isinstance(error,PaperError) and error.code==ErrorCode.BATCH_PAUSED: raise
+            result.update(error_fields(error,ErrorCode.ZOTERO_WRITE_FAILED))
             result['zotero']='WRITE_PENDING'
             result['archive_state'] = {'status': 'PENDING'}
             if metadata_only:
                 result['status']='NEEDS_REVIEW'
             result['warnings'].append('Zotero write not completed; any downloaded PDF is retained. '+str(error))
+    if not path and guard.errors[error_start:]:
+        detail=guard.errors[-1]
+        result.update(error_code=detail['error_code'],error_detail=detail,next_actions=[detail['next_action']])
+    result['sources_attempted']=[{k:e[k] for k in ('source','operation') if k in e}
+                                  for e in guard.events[event_start:] if e['event']=='request']
+    result['warnings']=[safe_text(w) for w in result['warnings']]
+    if doi_cache is not None and result['status'] in {'PDF_SAVED','PDF_ATTACHED','PDF_ALREADY_PRESENT','METADATA_ONLY'} and result.get('zotero')!='WRITE_PENDING':
+        doi_cache[paper['doi']]=dict(result)
     result['download_state'] = ({'status': 'VERIFIED', 'pdf': str(path), 'sha256': result['sha256']}
                                 if path else {'status': 'PENDING'})
     return result
 
 
+@task_entry
 def main(argv=None, *, prog="paper-tool"):
     parser=argparse.ArgumentParser(prog=prog, description=__doc__)
     parser.add_argument('--version', action='version', version=prog+' '+__version__)
     commands=parser.add_subparsers(dest='command',required=True)
+    plan=commands.add_parser('plan',help='Create a bound offline plan; metadata preflight is explicit')
+    plan.add_argument('--input',type=Path,required=True)
+    plan.add_argument('--out',type=Path,required=True)
+    plan.add_argument('--pdf-dir',type=Path)
+    access=plan.add_mutually_exclusive_group()
+    access.add_argument('--oa-only',dest='oa_only',action='store_true')
+    access.add_argument('--institutional',dest='oa_only',action='store_false')
+    plan.set_defaults(oa_only=True)
+    plan.add_argument('--metadata-preflight',action='store_true')
+    plan.add_argument('--max-runtime',type=int,default=7200,help='Runtime budget in seconds; at most 7200')
+    plan.add_argument('--max-download-bytes',type=int,default=2*1024**3)
+    plan.add_argument('--min-interval',type=float,default=30,help='At least 30 seconds per source')
+    plan.add_argument('--zotero',action='store_true')
+    plan.add_argument('--collection',default='')
+    plan.add_argument('--metadata-only',action='store_true')
+    plan.add_argument('--zotero-base',default=DEFAULT_ZOTERO)
+    plan.add_argument('--proxy',default=DEFAULT_PROXY)
+    plan.add_argument('--cdp',default=CDP_DEFAULT)
+    job=commands.add_parser('job',help='Execute or resume a verified plan within its safety policy')
+    job.add_argument('--plan',type=Path,required=True)
+    job.add_argument('--allow-zotero',action='store_true',help='Acknowledge the planned existing collection write scope')
+    status=commands.add_parser('status',help='Read unified task state without network requests')
+    status.add_argument('--out',type=Path,default=DEFAULT_OUT)
+    status.add_argument('--json',action='store_true')
     ui = commands.add_parser('ui', help='Open the local browser interface')
     ui.add_argument('--out', type=Path, default=Path(os.environ.get('PAPER_TOOL_OUT') or Path.home()/'Downloads'/'CiteCargo'))
     ui.add_argument('--port', type=int, default=8765)
@@ -538,6 +589,28 @@ def main(argv=None, *, prog="paper-tool"):
         p.add_argument('--collection')
         p.add_argument('--skip-done',action='store_true',help='Skip references already completed in the existing report')
     args=parser.parse_args(argv)
+    current_guard().allow_zotero=bool(getattr(args,'zotero',False))
+    current_guard().command_guard=True
+    if args.command in {'plan','job','status'}:
+        from . import agent
+        try:
+            if args.command=='plan':
+                from .safety import SafetyPolicy
+                result=agent.make_plan(args.input,args.out,oa_only=args.oa_only,zotero=args.zotero,
+                    collection=args.collection,metadata_only=args.metadata_only,zotero_base=args.zotero_base,
+                    proxy=args.proxy,cdp=args.cdp,pdf_dir=args.pdf_dir,metadata_preflight=args.metadata_preflight,
+                    safety_policy=SafetyPolicy(max_runtime_seconds=args.max_runtime,
+                        max_download_bytes=args.max_download_bytes,min_request_interval=args.min_interval))
+            elif args.command=='job':
+                result=agent.execute_plan(args.plan,allow_zotero=args.allow_zotero)
+            else:
+                result=agent.status(args.out)
+            print(json.dumps(result,ensure_ascii=False))
+            return 0 if args.command!='job' or result['status']=='COMPLETED' else 2
+        except (PaperError,OSError,ValueError,TypeError,KeyError) as error:
+            detail=error if isinstance(error,PaperError) else PaperError(str(error),code=ErrorCode.INVALID_PLAN)
+            print(json.dumps({'schema_version':'2.0','kind':'ERROR','status':'ERROR',**detail.as_dict()},ensure_ascii=False))
+            return 2
     if args.command=='ui':
         if not 0 <= args.port <= 65535:
             parser.error('--port must be between 0 and 65535')
@@ -710,10 +783,11 @@ def main(argv=None, *, prog="paper-tool"):
             print('Nothing to do: every reference is already completed.', file=sys.stderr)
             return 0
     for i,ref in enumerate(refs):
+        if current_guard().should_stop(): break
         if i and args.command=='fetch':time.sleep(args.interval)
         try:result=run_reference(ref,args)
         except (core.PaperError,OSError,ValueError,subprocess.TimeoutExpired) as error:
-            result={'status':'NEEDS_REVIEW','error':type(error).__name__, 'warnings':[str(error)]}
+            result={'status':'NEEDS_REVIEW','error':type(error).__name__, 'warnings':[safe_text(error)],**error_fields(error)}
         result['input']=ref
         results.append(result)
         print(json.dumps(result,ensure_ascii=False),flush=True)

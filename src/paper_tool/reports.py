@@ -957,3 +957,49 @@ def main(argv=None):
 
 if __name__ == '__main__':
     sys.exit(main())
+
+
+def agent_report(out):
+    """Small, offline AI report; never export candidate URLs or credentials."""
+    from . import batch,core
+    from .errors import safe_text, ErrorCode
+    out=Path(out)
+    job=batch.read_job(out)
+    settings=job.get('settings') or {}
+    rows=batch.load_rows(out)
+    unique={}
+    for row in rows:
+        key=str(row.get('doi') or batch.canonical_ref(row['input'])).lower()
+        unique.setdefault(key,row)
+    results=[]
+    for row in unique.values():
+        valid=not settings.get('metadata_only',False) and core.checkpoint_pdf_valid(row)
+        archived=bool(settings.get('zotero') and row.get('status') in {'PDF_ATTACHED','PDF_ALREADY_PRESENT','METADATA_ONLY'}
+                      and row.get('zotero') not in {'WRITE_PENDING','COLLECTION_REVIEW'})
+        done=batch._succeeded(row,settings.get('zotero',False),settings.get('metadata_only',False))
+        detail=row.get('error_detail')
+        if isinstance(detail,dict):
+            detail={k:safe_text(v) if isinstance(v,str) else v for k,v in detail.items()
+                    if k in {'error_code','message','retryable','retry_after','http_status','source','stop_reason','next_action'}}
+        code=row.get('error_code') or (ErrorCode.PDF_INVALID.value if row.get('pdf') and not valid and not settings.get('metadata_only') else None)
+        results.append({'input':row['input'],'title':row.get('title') or (row.get('paper') or {}).get('title') or '',
+            'doi':row.get('doi') or '', 'status':row.get('status') or 'WAITING',
+            'pdf':row.get('pdf') if valid else None,'sha256':row.get('sha256') if valid else None,
+            'pdf_verified':valid,'archive_completed':archived,'completed':done,
+            'error_code':code,'error_detail':detail,
+            'sources_attempted':row.get('sources_attempted') or [],
+            'pdf_source':row.get('pdf_source'),
+            'warnings':[safe_text(w) for w in batch._warnings(row)]})
+    pending=[r for r in results if not r['completed']]
+    actions=[]
+    if job.get('stop_reason'): actions.append({'action':'diagnose_stop','reason':job['stop_reason']})
+    if pending: actions.append({'action':'review_unfinished','job_id':job['job_id'],'count':len(pending)})
+    current_status='PARTIAL' if job['status']=='COMPLETED' and pending else job['status']
+    events=[{k:safe_text(v) if isinstance(v,str) else v for k,v in event.items() if k in {'event','source','operation','reason','http_status','retry_after','seconds','attempt','number'}}
+            for event in ((job.get('safety') or {}).get('events') or [])]
+    return {'schema_version':'2.0','kind':'STATUS','job_id':job['job_id'],'status':current_status,
+            'summary':{'total':len(results),'metadata_verified':sum(bool(r['doi'] and r['title']) for r in results),
+                       'pdf_verified':sum(r['pdf_verified'] for r in results),
+                       'archive_completed':sum(r['archive_completed'] for r in results),'pending':len(pending)},
+            'stop_reason':job.get('stop_reason'),'results':results,
+            'events':events,'next_actions':actions}

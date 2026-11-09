@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paper-tool"
-version = "1.2.0"
+version = "2.0.0rc1"
 description = "CiteCargo: turn reference lists into verified PDFs, with optional Zotero filing"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -23,7 +23,7 @@ classifiers = [
 dependencies = ["pypdf>=4.0,<7"]
 
 [project.optional-dependencies]
-dev = ["reportlab>=4.0", "build>=1.2,<2"]
+dev = ["reportlab>=4.0", "build>=1.2,<2", "jsonschema>=4.22,<5", "packaging>=24"]
 
 [project.urls]
 Homepage = "https://github.com/Xplore-LAB/paper-tool"

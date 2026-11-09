@@ -10,6 +10,8 @@ CLI in this file is kept for backwards compatibility.
 from __future__ import annotations
 
 import argparse
+import errno
+from contextlib import contextmanager
 import hashlib
 import ipaddress
 import json
@@ -21,9 +23,12 @@ import tempfile
 import time
 import unicodedata
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlencode, urlparse, urlunparse
-from urllib.request import Request, urlopen, build_opener, ProxyHandler, url2pathname
+from urllib.parse import quote, urlencode, urlparse, urlunparse, urljoin
+from urllib.request import Request, urlopen, build_opener, ProxyHandler, url2pathname, HTTPRedirectHandler
 import uuid
+
+from .errors import ErrorCode, PaperError, VerificationReason, error_fields, safe_text
+from .safety import current_guard, task_entry, task_scope, paper_entry, local_url, source_key
 
 BASE = "http://127.0.0.1:23119/api"
 DOI_RE = re.compile(r"(?:https?://(?:dx\.)?doi\.org/|doi\s*:\s*)?(10\.\d{4,9}/[^\s,;<>]+)", re.I)
@@ -36,10 +41,6 @@ PDF_URLS = []
 PDF_RATE_KIB = 0.0
 PDF_INTERVAL = 30.0
 LAST_PDF_ATTEMPT = None
-
-
-class PaperError(Exception):
-    pass
 
 
 def normalized(text: str) -> str:
@@ -77,17 +78,85 @@ def match_score(reference: str, record: dict) -> float:
     return round(0.72 * title_score + 0.10 * int(author_match) + 0.08 * int(year_match) + 0.10 * int(journal_match), 4)
 
 
+class _NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+@contextmanager
+def guarded_response(method, url, *, payload=None, headers=None, timeout=22, operation='metadata', proxy=None):
+    """Meter every redirect hop, and never forward local credentials remotely."""
+    with task_scope() as guard:
+        original=url
+        current=url
+        for hop in range(6):
+            lease=guard.before_request(current,operation)
+            response=None
+            try:
+                req=Request(current,data=payload,method=method,headers={
+                    'User-Agent':'CiteCargo/2 personal-research',**(headers or {})})
+                route=ProxyHandler({}) if local_url(current) else (ProxyHandler({'http':proxy,'https':proxy}) if proxy else ProxyHandler())
+                opener=build_opener(route,_NoRedirect())
+                try:
+                    remaining=guard.policy.max_runtime_seconds-guard.previous_elapsed-(guard.clock()-guard.started)
+                    response=opener.open(req,timeout=min(timeout,max(.1,remaining)))
+                except HTTPError as error:
+                    response=error
+                except (URLError,TimeoutError,OSError) as error:
+                    raise PaperError('Network request failed',code=ErrorCode.NETWORK_TIMEOUT,retryable=True,source=source_key(current)) from error
+                status=getattr(response,'status',None) or getattr(response,'code',None) or 200
+                response_headers=dict(getattr(response,'headers',{}) or {})
+                if status in {301,302,303,307,308}:
+                    location=next((v for k,v in response_headers.items() if k.lower()=='location'),None)
+                    if not location or hop==5:
+                        raise PaperError('Invalid or excessive redirects',code=ErrorCode.ACCESS_DENIED)
+                    target=urljoin(current,location)
+                    if ((local_url(original) and not local_url(target)) or
+                            (not local_url(original) and not safe_pdf_url(target)) or
+                            (urlparse(current).netloc!=urlparse(target).netloc and method!='GET')):
+                        raise PaperError('Redirect leaves the authorized route',code=ErrorCode.ACCESS_DENIED)
+                    current=target
+                    continue
+                guard.after_response(current,status,response_headers)
+                if status>=400:
+                    # Local Zotero is outside source quotas but preserves HTTP status.
+                    raise PaperError(f'HTTP {status} on local API',
+                        code=ErrorCode.ACCESS_DENIED if status in {401,403} else ErrorCode.ZOTERO_WRITE_FAILED,
+                        http_status=status)
+                guard.check_batch_budget()
+                yield response
+                return
+            finally:
+                if response is not None: response.close()
+                lease.close()
+
+
+@task_entry
 def request_bytes(method: str, url: str, *, payload=None, headers=None, timeout=22):
-    req = Request(url, data=payload, method=method, headers={"User-Agent": "ReferenceToZoteroMVP/0.1 personal-research", **(headers or {})})
-    try:
-        opener = build_opener(ProxyHandler({})) if urlparse(url).hostname in {"localhost", "127.0.0.1", "::1"} else build_opener()
-        with opener.open(req, timeout=timeout) as response:
-            return response.status, dict(response.headers), response.read(), response.geturl()
-    except HTTPError as error:
-        body = error.read(4096)
-        raise PaperError(f"HTTP {error.code} on {urlparse(url).netloc}: {body[:160]!r}") from error
-    except (URLError, TimeoutError, OSError) as error:
-        raise PaperError(f"Network failure for {urlparse(url).netloc}: {error}") from error
+    guard=current_guard()
+    operation=('zotero_read' if method=='GET' else 'zotero_write') if local_url(url) else 'metadata'
+    while True:
+        try:
+            with guarded_response(method,url,payload=payload,headers=headers,timeout=timeout,operation=operation) as response:
+                parts=[]
+                count=0
+                read=getattr(response,'read1',response.read)
+                while True:
+                    guard.check_batch_budget()
+                    chunk=read(65536)
+                    if not chunk: break
+                    count+=len(chunk)
+                    if count>20*1024*1024:
+                        raise PaperError('Metadata response exceeds size limit',code=ErrorCode.METADATA_NOT_FOUND)
+                    parts.append(chunk)
+                content=b''.join(parts)
+                guard.check_batch_budget()
+                return response.status,dict(response.headers),content,response.geturl()
+        except PaperError as error:
+            if error.code==ErrorCode.BATCH_PAUSED: raise
+            guard.record_error(error)
+            if method!='GET' or local_url(url) or not guard.retry_allowed(error): raise
+            guard.wait(max(guard.policy.min_request_interval,error.retry_after or 0))
 
 
 def get_json(url: str, *, headers=None) -> dict | list:
@@ -95,7 +164,7 @@ def get_json(url: str, *, headers=None) -> dict | list:
     try:
         return json.loads(content)
     except ValueError as error:
-        raise PaperError(f"Invalid JSON returned by {urlparse(url).netloc}") from error
+        raise PaperError("Invalid JSON returned by source",code=ErrorCode.METADATA_NOT_FOUND) from error
 
 
 def crossref_metadata(reference: str, *, demo=False) -> tuple[dict, float]:
@@ -104,18 +173,31 @@ def crossref_metadata(reference: str, *, demo=False) -> tuple[dict, float]:
     doi = doi_from(reference)
     if doi:
         url = "https://api.crossref.org/works/" + quote(doi, safe="/")
-        record = get_json(url)["message"]
+        payload=get_json(url)
+        record=payload.get('message') if isinstance(payload,dict) else None
+        if (not isinstance(record,dict) or not isinstance(record.get('DOI'),str)
+                or not isinstance(record.get('title'),list) or not record['title']
+                or not isinstance(record['title'][0],str) or not record['title'][0].strip()):
+            raise PaperError('Metadata source returned no usable record',code=ErrorCode.METADATA_NOT_FOUND)
+        if doi_from(record['DOI'])!=doi:
+            raise PaperError('Returned metadata DOI differs from the requested DOI',code=ErrorCode.AMBIGUOUS_MATCH)
         # An incorrect pasted DOI must not silently override a supplied title.
         confidence = match_score(reference, record)
         if len(tokens(reference)) >= 7 and confidence < 0.86:
-            raise PaperError(f"DOI matches a different bibliographic record (score={confidence:.2f})")
+            raise PaperError(f"DOI matches a different bibliographic record (score={confidence:.2f})",code=ErrorCode.AMBIGUOUS_MATCH)
         return record, 1.0 if len(tokens(reference)) < 7 else confidence
     url = "https://api.crossref.org/works?" + urlencode({"query.bibliographic": reference, "rows": 5})
-    candidates = get_json(url).get("message", {}).get("items", [])
+    payload=get_json(url)
+    message=payload.get('message') if isinstance(payload,dict) else None
+    candidates=message.get('items') if isinstance(message,dict) else None
+    if not isinstance(candidates,list):
+        raise PaperError('Metadata source returned no candidate list',code=ErrorCode.METADATA_NOT_FOUND)
+    candidates=[record for record in candidates if isinstance(record,dict) and isinstance(record.get('DOI'),str)
+                and isinstance(record.get('title'),list) and record['title'] and isinstance(record['title'][0],str)]
     ranked = sorted(((match_score(reference, x), x) for x in candidates), key=lambda x: x[0], reverse=True)
     if not ranked or ranked[0][0] < 0.87 or (len(ranked) > 1 and ranked[0][0] - ranked[1][0] < 0.07):
         options = [(round(s, 2), x.get("DOI"), (x.get("title") or [""])[0]) for s, x in ranked[:3]]
-        raise PaperError(f"Citation match needs review; candidates={options}")
+        raise PaperError(f"Citation match needs review; candidates={options}",code=ErrorCode.AMBIGUOUS_MATCH if ranked else ErrorCode.METADATA_NOT_FOUND)
     return ranked[0][1], ranked[0][0]
 
 
@@ -187,6 +269,7 @@ def pdf_candidates(doi: str, *, demo=False, errors=None) -> list[dict]:
             if isinstance(loc, dict) and loc.get("is_oa") and loc.get("pdf_url"):
                 found.append({"url": loc["pdf_url"], "source": "OpenAlex", "version": loc.get("version") or "unknown", "license": loc.get("license")})
     except PaperError as err:
+        if err.code==ErrorCode.BATCH_PAUSED: raise
         if errors is not None:
             errors.append("OpenAlex lookup unavailable: " + str(err))
     email = os.environ.get("UNPAYWALL_EMAIL", "")
@@ -197,6 +280,7 @@ def pdf_candidates(doi: str, *, demo=False, errors=None) -> list[dict]:
                 if isinstance(loc, dict) and loc.get("url_for_pdf"):
                     found.append({"url": loc["url_for_pdf"], "source": "Unpaywall", "version": loc.get("version") or "unknown", "license": loc.get("license")})
         except PaperError as err:
+            if err.code==ErrorCode.BATCH_PAUSED: raise
             if errors is not None:
                 errors.append("Unpaywall lookup unavailable: " + str(err))
     seen = set()
@@ -226,14 +310,14 @@ def verify_pdf(path: Path, paper: dict) -> tuple[bool, str]:
     try:
         with path.open("rb") as f:
             if not f.read(5) == b"%PDF-":
-                return False, "Not a PDF file"
+                return False, VerificationReason("Not a PDF file",ErrorCode.PDF_INVALID)
         from pypdf import PdfReader
         reader = PdfReader(str(path), strict=False)
         if not reader.pages:
-            return False, "PDF has no pages"
+            return False, VerificationReason("PDF has no pages",ErrorCode.PDF_INVALID)
         text = reader.pages[0].extract_text() or ""
         if not text.strip():
-            return False, "Scanned/unreadable PDF: manual review required"
+            return False, VerificationReason("Scanned/unreadable PDF: manual review required",ErrorCode.PDF_INVALID)
         content = normalized(text)
         normalized_doi = normalized(paper["doi"])
         title_words = normalized(paper["title"]).split()
@@ -257,11 +341,11 @@ def verify_pdf(path: Path, paper: dict) -> tuple[bool, str]:
         if (len(title) >= 40 and title in compact[:2000] and author and author in compact
                 and normalized_doi and normalized_doi.replace(" ", "") in compact):
             return True, "Exact first-page title, DOI and author verified after removing extraction spaces"
-        return False, f"PDF identity unclear (contiguous title similarity={best:.2f})"
+        return False, VerificationReason(f"PDF identity unclear (contiguous title similarity={best:.2f})",ErrorCode.PDF_IDENTITY_MISMATCH)
     except ImportError:
-        return False, "Install pypdf to verify PDF identity"
+        return False, VerificationReason("Install pypdf to verify PDF identity",ErrorCode.PDF_INVALID)
     except Exception as error:
-        return False, f"Unreadable PDF: {error}"
+        return False, VerificationReason(f"Unreadable PDF: {error}",ErrorCode.PDF_INVALID)
 
 
 def pdf_sha256(path: Path) -> str:
@@ -299,59 +383,72 @@ def checkpoint_pdf_valid(row: dict) -> bool:
         return False
 
 
+@paper_entry
 def download_verified(paper: dict, candidates: list[dict], out: Path) -> tuple[Path | None, dict | None, list[str]]:
-    global LAST_PDF_ATTEMPT
-    failures = []
-    out.mkdir(parents=True, exist_ok=True)
-    safe_name = re.sub(r"[^A-Za-z0-9_.-]", "_", paper["doi"]).strip("._") or "unknown"
-    dest = out / f"{safe_name}.pdf"
+    guard=current_guard()
+    failures=[]
+    out.mkdir(parents=True,exist_ok=True)
+    safe_name=re.sub(r'[^A-Za-z0-9_.-]','_',paper['doi']).strip('._') or 'unknown'
+    dest=out/(safe_name+'.pdf')
     if dest.exists():
-        ok, why = verify_pdf(dest, paper)
-        if ok:
-            return dest, {"source": "existing_local", "version": "unknown", "url": ""}, failures
-        failures.append(f"Existing file kept; could not reuse: {why}")
-        # Preserve user files. Use a separate file name for newly downloaded data.
-        dest = out / f"{safe_name}_{uuid.uuid4().hex[:6]}.pdf"
+        ok,why=verify_pdf(dest,paper)
+        if ok: return dest,{'source':'existing_local','version':'unknown','url':''},failures
+        failures.append('Existing file kept; could not reuse: '+why)
+        dest=out/(safe_name+'_'+uuid.uuid4().hex[:6]+'.pdf')
     for loc in candidates:
-        url = loc["url"]
+        url=loc['url']
         if not safe_pdf_url(url):
-            failures.append("Rejected non-public/non-HTTPS PDF URL")
+            guard.record_error(PaperError('PDF candidate URL was rejected',code=ErrorCode.ACCESS_DENIED,source=source_key(url)))
+            failures.append('Rejected non-public/non-HTTPS PDF URL')
             continue
-        fd, temp_path = tempfile.mkstemp(prefix="paper-", suffix=".part", dir=out)
-        os.close(fd)
-        tmp = Path(temp_path)
-        try:
-            if LAST_PDF_ATTEMPT is not None:
-                time.sleep(max(0, PDF_INTERVAL - (time.monotonic() - LAST_PDF_ATTEMPT)))
-            started = time.monotonic()
-            req = Request(url, headers={"User-Agent": "ReferenceToZoteroMVP/0.1 personal-research"})
-            opener = build_opener(ProxyHandler({"http": PDF_PROXY, "https": PDF_PROXY} if PDF_PROXY else {}))
-            with opener.open(req, timeout=25) as res, tmp.open("wb") as f:
-                if not safe_pdf_url(res.geturl()):
-                    raise PaperError("Redirected to an unsafe URL")
-                count = 0
-                while True:
-                    chunk = res.read(65536)
-                    if not chunk:
-                        break
-                    count += len(chunk)
-                    if count > MAX_PDF:
-                        raise PaperError("PDF exceeds 60 MB limit")
-                    f.write(chunk)
-                    if PDF_RATE_KIB > 0:
-                        time.sleep(max(0, count / (PDF_RATE_KIB * 1024) - (time.monotonic() - started)))
-            ok, reason = verify_pdf(tmp, paper)
-            if not ok:
-                raise PaperError(reason)
-            tmp.replace(dest)
-            return dest, loc, failures
-        except (PaperError, HTTPError, URLError, TimeoutError, OSError) as error:
-            failures.append(f"{loc['source']} PDF unsuccessful: {error}")
-        finally:
-            LAST_PDF_ATTEMPT = time.monotonic()
-            if tmp.exists():
+        while True:
+            fd,temp_path=tempfile.mkstemp(prefix='paper-',suffix='.part',dir=out)
+            os.close(fd)
+            tmp=Path(temp_path)
+            retry=None
+            try:
+                with guarded_response('GET',url,timeout=25,operation='pdf',proxy=PDF_PROXY) as response, tmp.open('wb') as handle:
+                    started=time.monotonic()
+                    if not safe_pdf_url(response.geturl()):
+                        raise PaperError('Redirected to an unsafe URL',code=ErrorCode.ACCESS_DENIED)
+                    count=0
+                    while True:
+                        guard.check_batch_budget()
+                        chunk=getattr(response,'read1',response.read)(65536)
+                        if not chunk: break
+                        count+=len(chunk)
+                        guard.consume_bytes(len(chunk))
+                        if count>MAX_PDF: raise PaperError('PDF exceeds 60 MB limit',code=ErrorCode.PDF_INVALID)
+                        handle.write(chunk)
+                        if PDF_RATE_KIB>0:
+                            guard.wait(max(0,count/(PDF_RATE_KIB*1024)-(time.monotonic()-started)))
+                valid,why=verify_pdf(tmp,paper)
+                if not valid:
+                    raise PaperError(why,code=getattr(why,'code',ErrorCode.PDF_IDENTITY_MISMATCH),source=source_key(url))
+                # Same-directory hard-link publication is atomic and refuses
+                # overwrite even if another writer appears after our check.
+                try:
+                    os.link(tmp,dest)
+                except FileExistsError:
+                    raise PaperError('Destination appeared during download; the existing file was retained',code=ErrorCode.PDF_INVALID)
+                except OSError as error:
+                    raise PaperError('Cannot safely publish PDF on this filesystem',code=ErrorCode.PDF_INVALID) from error
                 tmp.unlink()
-    return None, None, failures
+                return dest,loc,failures
+            except (PaperError,URLError,TimeoutError,OSError) as error:
+                if not isinstance(error,PaperError):
+                    if isinstance(error,OSError) and error.errno in {errno.ENOSPC,getattr(errno,'EDQUOT',-1),errno.EACCES,errno.EROFS,errno.EIO}:
+                        guard.pause('LOCAL_IO_FAILURE')
+                    error=PaperError('PDF request failed',code=ErrorCode.NETWORK_TIMEOUT,retryable=True,source=source_key(url))
+                if error.code==ErrorCode.BATCH_PAUSED: raise
+                guard.record_error(error)
+                failures.append(safe_text(loc.get('source','source')+' PDF unsuccessful: '+str(error)))
+                if guard.retry_allowed(error): retry=error
+            finally:
+                if tmp.exists(): tmp.unlink()
+            if retry is None: break
+            guard.wait(max(guard.policy.min_request_interval,retry.retry_after or 0))
+    return None,None,failures
 
 
 class ZoteroLocal:
@@ -384,7 +481,7 @@ class ZoteroLocal:
         try:
             status, response_headers, body, _final = request_bytes(method, self.base + endpoint, payload=data, headers=hdr)
         except PaperError as error:
-            if method != "GET" and _retry and "HTTP 401" in str(error):
+            if method != "GET" and _retry and (error.http_status == 401 or "HTTP 401" in str(error)):
                 self.authorize()
                 return self.call(method, endpoint, data, headers=hdr, _retry=False)
             raise
@@ -642,6 +739,7 @@ def choose_collection(zotero: ZoteroLocal, paper: dict, specified: str | None) -
     return (best if best["score"] >= 0.35 and best["score"] - runner >= 0.15 else None), ranked[:5]
 
 
+@paper_entry
 def process(reference: str, args, zotero=None) -> dict:
     result = {"input": reference, "status": "PENDING", "pdf": None, "zotero": "not_modified", "warnings": []}
     try:
@@ -733,6 +831,7 @@ SAMPLE_RECORD = {
 }
 
 
+@task_entry
 def main(argv=None):
     global PDF_PROXY, PDF_URLS, PDF_RATE_KIB, PDF_INTERVAL
     parser = argparse.ArgumentParser(description=__doc__)

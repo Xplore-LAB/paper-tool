@@ -11,6 +11,7 @@ from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
 from paper_tool import core as m
+from paper_tool.safety import SafetyGuard, use_guard
 
 
 class TransportTest(unittest.TestCase):
@@ -194,7 +195,8 @@ class TransportTest(unittest.TestCase):
              patch.object(m, "build_opener", return_value=Opener()), \
              patch.object(m, "verify_pdf", return_value=(True, "test fixture")), \
              patch.object(m.time, "monotonic", side_effect=lambda: clock[0]), \
-             patch.object(m.time, "sleep", side_effect=advance):
+             patch.object(m.time, "sleep", side_effect=advance), \
+             use_guard(SafetyGuard()):
             candidates = [{"url": "https://repository.example.edu/paper.pdf", "source": "test"}]
             first, _, _ = m.download_verified({"doi": "10.9999/first"}, candidates, Path(temp))
             self.assertEqual(first.read_bytes(), payload)

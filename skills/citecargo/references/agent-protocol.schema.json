@@ -1,0 +1,406 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_concurrency_per_host",
+        "min_request_interval",
+        "max_retries_per_paper",
+        "pilot_batch_size",
+        "batch_size",
+        "max_runtime_seconds",
+        "max_download_bytes"
+      ],
+      "properties": {
+        "max_concurrency_per_host": {
+          "type": "integer",
+          "const": 1
+        },
+        "min_request_interval": {
+          "type": "number",
+          "minimum": 30
+        },
+        "max_retries_per_paper": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "pilot_batch_size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "batch_size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "max_runtime_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        },
+        "max_download_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483648
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "policy_version",
+        "kind",
+        "job_id",
+        "created_at",
+        "source",
+        "references",
+        "options",
+        "safety_policy",
+        "preflight",
+        "plan_hash"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "2.0"
+        },
+        "policy_version": {
+          "const": "2.0"
+        },
+        "kind": {
+          "const": "PLAN"
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{32}$"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        "references": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "options": {
+          "type": "object",
+          "required": [
+            "out",
+            "pdf_dir",
+            "oa_only",
+            "zotero",
+            "collection",
+            "metadata_only",
+            "zotero_base",
+            "proxy",
+            "cdp"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "out": {
+              "type": "string"
+            },
+            "pdf_dir": {
+              "type": "string"
+            },
+            "oa_only": {
+              "type": "boolean"
+            },
+            "zotero": {
+              "type": "boolean"
+            },
+            "collection": {
+              "type": "string"
+            },
+            "metadata_only": {
+              "type": "boolean"
+            },
+            "zotero_base": {
+              "type": "string"
+            },
+            "proxy": {
+              "type": "string"
+            },
+            "cdp": {
+              "type": "string"
+            }
+          }
+        },
+        "safety_policy": {
+          "$ref": "#/$defs/policy"
+        },
+        "preflight": {
+          "type": "object",
+          "required": [
+            "mode",
+            "results"
+          ],
+          "properties": {
+            "mode": {
+              "enum": [
+                "offline",
+                "metadata"
+              ]
+            },
+            "results": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "safety": {
+              "type": "object"
+            }
+          }
+        },
+        "plan_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "kind",
+        "job_id",
+        "status",
+        "summary",
+        "stop_reason",
+        "results",
+        "events",
+        "next_actions"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "2.0"
+        },
+        "kind": {
+          "const": "STATUS"
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{32}$"
+        },
+        "status": {
+          "enum": [
+            "PLANNED",
+            "RUNNING",
+            "COMPLETED",
+            "PARTIAL",
+            "PAUSED",
+            "ERROR"
+          ]
+        },
+        "summary": {
+          "type": "object",
+          "required": [
+            "total",
+            "metadata_verified",
+            "pdf_verified",
+            "archive_completed",
+            "pending"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "metadata_verified": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "pdf_verified": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "archive_completed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "pending": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "stop_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "input",
+              "title",
+              "doi",
+              "status",
+              "pdf",
+              "sha256",
+              "pdf_verified",
+              "archive_completed",
+              "completed",
+              "error_code",
+              "error_detail",
+              "sources_attempted",
+              "warnings"
+            ],
+            "properties": {
+              "pdf_verified": {
+                "type": "boolean"
+              },
+              "archive_completed": {
+                "type": "boolean"
+              },
+              "completed": {
+                "type": "boolean"
+              },
+              "pdf": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "error_code": {
+                "enum": [
+                  "METADATA_NOT_FOUND",
+                  "AMBIGUOUS_MATCH",
+                  "ACCESS_DENIED",
+                  "RATE_LIMITED",
+                  "NETWORK_TIMEOUT",
+                  "PDF_INVALID",
+                  "PDF_IDENTITY_MISMATCH",
+                  "ZOTERO_WRITE_FAILED",
+                  "BATCH_PAUSED",
+                  "INVALID_PLAN",
+                  "JOB_LOCKED",
+                  "UNKNOWN_ERROR",
+                  null
+                ]
+              },
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "event"
+            ]
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "kind",
+        "status",
+        "error_code",
+        "message",
+        "retryable",
+        "next_action"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "2.0"
+        },
+        "kind": {
+          "const": "ERROR"
+        },
+        "status": {
+          "const": "ERROR"
+        },
+        "error_code": {
+          "enum": [
+            "METADATA_NOT_FOUND",
+            "AMBIGUOUS_MATCH",
+            "ACCESS_DENIED",
+            "RATE_LIMITED",
+            "NETWORK_TIMEOUT",
+            "PDF_INVALID",
+            "PDF_IDENTITY_MISMATCH",
+            "ZOTERO_WRITE_FAILED",
+            "BATCH_PAUSED",
+            "INVALID_PLAN",
+            "JOB_LOCKED",
+            "UNKNOWN_ERROR"
+          ]
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "message": {
+          "type": "string"
+        },
+        "next_action": {
+          "type": "string"
+        }
+      }
+    }
+  ]
+}

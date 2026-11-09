@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## 2.0.0rc1 — Offline Agent workflow (candidate)
+
+- Added bound offline plans, optional metadata preflight, pilot execution and unified JSON status.
+- Added task-scoped source scheduling, retry/transfer/runtime budgets, source suspension and structured errors.
+- Retained manifest rows and added atomic job metadata plus exclusive writer locks.
+- Added a wheel-only offline Skill with hash checks, isolated cache runtimes and interrupted-install recovery.
+- Added one-payload six-platform validation receipts and a formal bundle build gate.
+- Kept the existing UI, browser backend and Zotero protocol; browser internals remain outside per-request Python metering.
+- Runtime acceptance is recorded per actual platform; this candidate is not a completed cross-platform release.
+
 ## 1.2.0 — A simpler way in
 
 - Added a bilingual local browser interface for references, progress, PDF retrieval and optional Zotero archival.
